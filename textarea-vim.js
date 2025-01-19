@@ -61,66 +61,63 @@ function setMode(vim, mode) {
     vim.syncronizeLabels();
 }
 
-const COMMAND_RE = /^(\d*)([\^\$Gahi-l]|gg)|(^0)/;
+const COMMAND_RE = /^(\d*)([\^\$AGIahi-l]|gg)|(^0)/;
 
 const normalCommands = [
     {
         key: "gg",
-        alias: "",
         action: (w, r) => setCursorPosition(w, r, 0)
     },
     {
         key: "k",
-        alias: "",
         action: (w, r) => moveCursor(w, -r, 0)
     },
     {
         key: "0",
-        alias: "",
         action: (w, r) => moveCursor(w, 0, -Infinity)
     },
     {
         key: "^",
-        alias: "",
         action: (w, r) => homeCursor(w)
     },
     {
         key: "h",
-        alias: "",
         action: (w, r) => moveCursor(w, 0, -r)
     },
     {
         key: "l",
-        alias: "",
         action: (w, r) => moveCursor(w, 0, r)
     },
     {
         key: "$",
-        alias: "",
         action: (w, r) => moveCursor(w, 0, Infinity)
     },
     {
         key: "j",
-        alias: "",
         action: (w, r) => moveCursor(w, r, 0)
     },
     {
         key: "G",
-        alias: "",
         action: (w, r) => setCursorPosition(w, r === 1 ? Infinity : r, 0)
     },
     {
         key: "i",
-        alias: "",
         action: (w, r, v) => setMode(v, MODE_INSERT)
     },
     {
+        key: "I",
+        alias: "^i"
+    },
+    {
         key: "a",
-        alias: "",
         action: (w, r, v) => {
             moveCursor(w, 0, 1, true);
             setMode(v, MODE_INSERT);
         }
+    },
+    {
+        key: "A",
+        alias: "$a"
     }
 ]
 
@@ -144,9 +141,9 @@ function processBuffer(buffer, where, vim) {
             return;
         }
 
-        if (normalCommand.alias.length > 0) {
+        if (normalCommand.alias && normalCommand.alias.length > 0) {
             buffer = `${repeat}${normalCommand.alias}${buffer.substring(command.length)}`;
-            return processBuffer(buffer, where);
+            return processBuffer(buffer, where, vim);
         }
 
         buffer = buffer.substring(command.length);
@@ -157,7 +154,7 @@ function processBuffer(buffer, where, vim) {
         return buffer;
     }
 
-    return processBuffer(buffer, where);
+    return processBuffer(buffer, where, vim);
 }
 
 function press(v, e) {
