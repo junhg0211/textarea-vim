@@ -2,9 +2,9 @@ const MODE_NORMAL = "NORMAL";
 const MODE_INSERT = "INSERT";
 
 function getCursorPosition(where) {
-    const selectionEnd = where.selectionEnd;
+    const selectionPos = where.selectionStart;
     const previousLines = where.value
-        .substring(0, selectionEnd).split(/\n/g);
+        .substring(0, selectionPos).split(/\n/g);
     
     const rows = previousLines.length;
     const cols = previousLines[rows-1].length;
@@ -36,7 +36,7 @@ function setCursorPosition(where, rows, cols, force) {
 
     // set position
     where.selectionStart = previousLength;
-    where.selectionEnd = previousLength;
+    where.selectionEnd = previousLength + 1;
 }
 
 function refreshCursorPosition(where) {
@@ -56,12 +56,31 @@ function homeCursor(where) {
     return setCursorPosition(where, rows, indentation);
 }
 
+function lineifyCursor(where) {
+    where.selectionEnd = where.selectionStart;
+}
+
 function setMode(vim, mode) {
     vim.mode = mode;
+    lineifyCursor(vim.target);
     vim.syncronizeLabels();
 }
 
-const COMMAND_RE = /^(\d*)([\^\$AGIahi-l]|gg)|(^0)/;
+function removeCharacter(where, repeats) {
+    const selectionPos = where.selectionStart;
+    const newValue = where.value.substring(0, selectionPos) + where.value.substring(selectionPos+repeats);
+
+    if ((where.value.match(/\n/g) || []).length !== (newValue.match(/\n/g) || []).length) {
+        return;
+    }
+
+    where.value = newValue;
+    where.selectionStart = selectionPos;
+    where.selectionEnd = selectionPos + 1;
+    refreshCursorPosition(where);
+}
+
+const COMMAND_RE = /^(\d*)([\^\$AGIahi-lx]|gg)|(^0)/;
 
 const normalCommands = [
     {
@@ -118,6 +137,10 @@ const normalCommands = [
     {
         key: "A",
         alias: "$a"
+    },
+    {
+        key: "x",
+        action: (w, r) => removeCharacter(w, r)
     }
 ]
 
