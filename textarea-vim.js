@@ -15,7 +15,7 @@ function setCursorPosition(where, rows, cols) {
     const lines = where.value.split(/\n/g);
 
     // rows
-    rows = Math.min(lines.length, Math.max(0, rows));
+    rows = Math.min(lines.length, Math.max(1, rows));
 
     let previousLength = 0;
     for (let i = 0; i < rows-1; i++) {
@@ -37,13 +37,29 @@ function moveCursor(where, dr, dc) {
     setCursorPosition(where, rows + dr, cols + dc)
 }
 
-const COMMAND_RE = /(\d*)([hj-l])/;
+function homeCursor(where) {
+    const [rows] = getCursorPosition(where);
+    const indentation = where.value.split(/\n/g)[rows-1].match(/^[ \t]*/)[0].length;
+    return setCursorPosition(where, rows, indentation);
+}
+
+const COMMAND_RE = /^(\d*)([0\^\$hj-l])/;
 
 const normalCommands = [
     {
         key: "k",
         alias: "",
         action: (w, r) => moveCursor(w, -r, 0)
+    },
+    {
+        key: "0",
+        alias: "",
+        action: (w, r) => moveCursor(w, 0, -Infinity)
+    },
+    {
+        key: "^",
+        alias: "",
+        action: (w, r) => homeCursor(w)
     },
     {
         key: "h",
@@ -54,6 +70,11 @@ const normalCommands = [
         key: "l",
         alias: "",
         action: (w, r) => moveCursor(w, 0, r)
+    },
+    {
+        key: "$",
+        alias: "",
+        action: (w, r) => moveCursor(w, 0, Infinity)
     },
     {
         key: "j",
@@ -77,7 +98,7 @@ function processBuffer(buffer, where) {
             return;
         }
 
-        if (normalCommand.alias) {
+        if (normalCommand.alias.length > 0) {
             buffer = `${repeat}${normalCommand.alias}${buffer.substring(command.length)}`;
             return processBuffer(buffer, where);
         }
@@ -106,9 +127,25 @@ function vimify(target, modeSpan, bufferSpan) {
         }
 
         bufferSpan.innerText = buffer;
+        modeSpan.innerText = mode;
     }
 
     function down(e) {
+        if (e.key === "Escape") {
+            buffer = "";
+            mode = MODE_NORMAL;
+        }
+
+        if (e.key === "Backspace") {
+            if (mode === MODE_NORMAL) {
+                e.preventDefault();
+                buffer = "";
+                moveCursor(target, 0, -1);
+            }
+        }
+
+        bufferSpan.innerText = buffer;
+        modeSpan.innerText = mode;
     }
 
     target.addEventListener("keypress", press);
