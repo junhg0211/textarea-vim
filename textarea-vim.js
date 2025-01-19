@@ -73,7 +73,7 @@ function removeCharacter(where, repeats) {
     for (let i = 0; i < repeats; i++) {
         previousValue = newValue;
 
-        newValue = where.value.substring(0, selectionPos) + where.value.substring(selectionPos + 1);
+        newValue = newValue.substring(0, selectionPos) + newValue.substring(selectionPos + 1);
         if ((where.value.match(/\n/g) || []).length !== (newValue.match(/\n/g) || []).length) {
             newValue = previousValue;
             break;
@@ -176,7 +176,75 @@ function insertAtCursor(where, value) {
     where.selectionEnd = selectionPos + value.length;
 }
 
-const COMMAND_RE = /^(\d*)([\^\$AGIOSahi-loux]|dd|gg|<C-r>)|(^0)/;
+function processDelete(where, repeats, vim, mRepeats, mKey) {
+    if (mKey === "gg") {
+        const [rows] = getCursorPosition(where);
+        processBuffer(`gg${rows}dd`, where, vim);
+        return;
+    }
+
+    if (mKey === "k") {
+        processBuffer(
+            `${repeats * mRepeats}${mKey}${repeats * mRepeats + 1}dd`,
+            where,
+            vim
+        );
+        return;
+    }
+
+    if (mKey === "0") {
+        const [_, cols] = getCursorPosition(where);
+        processBuffer(`0${cols-1}x`, where, vim);
+        return;
+    }
+
+    if (mKey === "^") {
+        const [rows, cols] = getCursorPosition(where);
+        const indentation = where.value.split(/\n/g)[rows-1].match(/^[ \t]+/)[0].length;
+        if (cols > indentation) {
+            processBuffer(`^${cols-indentation}x`, where, vim);
+        } else {
+            processBuffer(`^${indentation-cols}dh`, where, vim);
+        }
+        return;
+    }
+
+    if (mKey === "h") {
+        processBuffer(
+            `${repeats * mRepeats}${mKey}${repeats * mRepeats}x`,
+            where,
+            vim
+        );
+        return;
+    }
+
+    if (mKey === "l") {
+        processBuffer(`${repeats * mRepeats}x`, where, vim);
+        return;
+    }
+
+    if (mKey === "$") {
+        const [rows, cols] = getCursorPosition(where);
+        const charCount = where.value.split(/\n/g)[rows-1].length;
+        processBuffer(`${charCount - cols}x`, where, vim);
+        return;
+    }
+
+    if (mKey === "j") {
+        processBuffer(`${repeats * mRepeats + 1}dd`, where, vim);
+        return;
+    }
+
+    if (mKey === "G") {
+        const [rows] = getCursorPosition(where);
+        const lineCount = where.value.split(/\n/g).length;
+        processBuffer(`${lineCount - rows + 1}dd0`, where, vim);
+    }
+
+    // console.log(repeats, "d", mRepeats, mKey);
+}
+
+const COMMAND_RE = /^([1-9]\d*)?((dd|[\^\$AGIOSadhi-loux]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l]))?/;
 
 const normalCommands = [
     {
@@ -189,11 +257,11 @@ const normalCommands = [
     },
     {
         key: "0",
-        action: (w, r) => moveCursor(w, 0, -Infinity),
+        action: (w) => moveCursor(w, 0, -Infinity),
     },
     {
         key: "^",
-        action: (w, r) => homeCursor(w),
+        action: (w) => homeCursor(w),
     },
     {
         key: "h",
@@ -205,7 +273,7 @@ const normalCommands = [
     },
     {
         key: "$",
-        action: (w, r) => moveCursor(w, 0, Infinity),
+        action: (w) => moveCursor(w, 0, Infinity),
     },
     {
         key: "j",
@@ -255,6 +323,15 @@ const normalCommands = [
         action: (w, r) => removeLine(w, r),
     },
     {
+        key: "d",
+        action: (w, r, v, mr, mk) => processDelete(w, r, v, mr, mk),
+        requireArgs: true,
+    },
+    {
+        key: "dd",
+        action: (w, r) => removeLine(w, r),
+    },
+    {
         key: "u",
         action: (w, r) => popStack(w, r),
     },
@@ -266,9 +343,16 @@ const normalCommands = [
 
 function processBuffer(buffer, where, vim) {
     const originalBuffer = buffer;
-    const [command, repeat, key, zero] = buffer.match(COMMAND_RE) || [];
+    const [command, repeat, _a, key, zero, _b, mr, mk] =
+        buffer.match(COMMAND_RE) || [];
+    const repeats = parseInt(repeat) || 1;
+    const mRepeat = mr === undefined ? "" : mr;
+    const mRepeats = parseInt(mRepeat) || 1;
+    const mKey = mk === undefined ? "" : mk;
 
-    console.log(buffer, command, repeat, key, zero);
+    if (command !== undefined) {
+        // console.log([command, repeat, key, mRepeat, mKey]);
+    }
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
@@ -279,20 +363,35 @@ function processBuffer(buffer, where, vim) {
         return buffer;
     }
 
-    const repeats = parseInt(repeat) || 1;
-
+    let run = false;
     normalCommands.forEach((normalCommand) => {
         if (normalCommand.key !== key) {
             return;
         }
 
-        if (normalCommand.alias && normalCommand.alias.length > 0) {
-            buffer = `${repeat}${normalCommand.alias}${buffer.substring(command.length)}`;
-            return processBuffer(buffer, where, vim);
+        if (run) {
+            return;
         }
 
-        buffer = buffer.substring(command.length);
-        return normalCommand.action(where, repeats, vim);
+        if (normalCommand.requireArgs) {
+            if (mKey.length > 0) {
+                buffer = buffer.substring(command.length);
+                run = true;
+                return normalCommand.action(where, repeats, vim, mRepeats, mKey);
+            }
+        } else if (normalCommand.alias && normalCommand.alias.length > 0) {
+            buffer =
+                `${repeat}${normalCommand.alias}` +
+                `${buffer.substring(
+                    command.length - mRepeat.length - mKey.length
+                )}`;
+            run = true;
+            return processBuffer(buffer, where, vim);
+        } else {
+            buffer = buffer.substring(command.length - mRepeat.length - mKey.length);
+            run = true;
+            return normalCommand.action(where, repeats, vim);
+        }
     });
 
     if (buffer === originalBuffer) {
