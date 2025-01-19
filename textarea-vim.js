@@ -1,4 +1,5 @@
 const MODE_NORMAL = "NORMAL";
+const MODE_INSERT = "INSERT";
 
 function getCursorPosition(where) {
     const selectionEnd = where.selectionEnd;
@@ -49,7 +50,12 @@ function homeCursor(where) {
     return setCursorPosition(where, rows, indentation);
 }
 
-const COMMAND_RE = /^(\d*)(!^0|[\^\$Ghj-l]|gg)/;
+function setMode(vim, mode) {
+    vim.mode = mode;
+    vim.syncronizeLabels();
+}
+
+const COMMAND_RE = /^(\d*)([\^\$Ghi-l]|gg)|(^0)/;
 
 const normalCommands = [
     {
@@ -96,12 +102,22 @@ const normalCommands = [
         key: "G",
         alias: "",
         action: (w, r) => setCursorPosition(w, r === 1 ? Infinity : r, 0)
+    },
+    {
+        key: "i",
+        alias: "",
+        action: (w, r, v) => setMode(v, MODE_INSERT)
     }
 ]
 
-function processBuffer(buffer, where) {
+function processBuffer(buffer, where, vim) {
     const originalBuffer = buffer;
-    const [command, repeat, key] = buffer.match(COMMAND_RE) || [];
+    const [command, repeat, key, zero] = buffer.match(COMMAND_RE) || [];
+
+    if (zero !== undefined) {
+        normalCommands.find(normalCommand => normalCommand.key === "0").action(where, 1, vim);
+        return buffer.substring(command.length);
+    }
 
     if (key === undefined) {
         return buffer;
@@ -120,7 +136,7 @@ function processBuffer(buffer, where) {
         }
 
         buffer = buffer.substring(command.length);
-        return normalCommand.action(where, repeats);
+        return normalCommand.action(where, repeats, vim);
     });
 
     if (buffer === originalBuffer) {
@@ -130,40 +146,49 @@ function processBuffer(buffer, where) {
     return processBuffer(buffer, where);
 }
 
-function vimify(target, modeSpan, bufferSpan) {
-    let mode = MODE_NORMAL;
-    let buffer = "";
+function press(v, e) {
+    if (v.mode === MODE_NORMAL) {
+        v.buffer += String.fromCharCode(e.charCode);
+        e.preventDefault();
+        v.buffer = processBuffer(v.buffer, v.target, v);
+    }
 
-    function press(e) {
-        buffer += String.fromCharCode(e.charCode);
+    v.syncronizeLabels();
+}
 
-        if (mode === MODE_NORMAL) {
+function down(v, e) {
+    if (e.key === "Escape") {
+        v.buffer = "";
+        v.mode = MODE_NORMAL;
+    }
+
+    if (e.key === "Backspace") {
+        if (v.mode === MODE_NORMAL) {
             e.preventDefault();
-            buffer = processBuffer(buffer, target);
+            v.buffer = "";
+            moveCursor(v.target, 0, -1);
         }
-
-        bufferSpan.innerText = buffer;
-        modeSpan.innerText = mode;
     }
 
-    function down(e) {
-        if (e.key === "Escape") {
-            buffer = "";
-            mode = MODE_NORMAL;
-        }
+    v.syncronizeLabels();
+}
 
-        if (e.key === "Backspace") {
-            if (mode === MODE_NORMAL) {
-                e.preventDefault();
-                buffer = "";
-                moveCursor(target, 0, -1);
-            }
-        }
 
-        bufferSpan.innerText = buffer;
-        modeSpan.innerText = mode;
+class Vim {
+    constructor(target, modeSpan, bufferSpan) {
+        this.target = target;
+        this.modeSpan = modeSpan;
+        this.bufferSpan = bufferSpan;
+
+        this.mode = MODE_NORMAL;
+        this.buffer = "";
+
+        target.addEventListener("keypress", e => press(this, e));
+        target.addEventListener("keydown", e => down(this, e));
     }
 
-    target.addEventListener("keypress", press);
-    target.addEventListener("keydown", down);
+    syncronizeLabels() {
+        this.bufferSpan.innerText = this.buffer;
+        this.modeSpan.innerText = this.mode;
+    }
 }
