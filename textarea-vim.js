@@ -68,10 +68,17 @@ function setMode(vim, mode) {
 
 function removeCharacter(where, repeats) {
     const selectionPos = where.selectionStart;
-    const newValue = where.value.substring(0, selectionPos) + where.value.substring(selectionPos+repeats);
 
-    if ((where.value.match(/\n/g) || []).length !== (newValue.match(/\n/g) || []).length) {
-        return;
+    let newValue = where.value;
+    let previousValue;
+    for (let i = 0; i < repeats; i++) {
+        previousValue = newValue;
+
+        newValue = where.value.substring(0, selectionPos) + where.value.substring(selectionPos+1);
+        if ((where.value.match(/\n/g) || []).length !== (newValue.match(/\n/g) || []).length) {
+            newValue = previousValue;
+            break;
+        }
     }
 
     where.value = newValue;
@@ -80,7 +87,17 @@ function removeCharacter(where, repeats) {
     refreshCursorPosition(where);
 }
 
-const COMMAND_RE = /^(\d*)([\^\$AGIahi-lx]|gg)|(^0)/;
+function removeLine(where, repeats) {
+    const lines = where.value.split(/\n/g);
+    const [rows, cols] = getCursorPosition(where);
+    lines.splice(rows-1, repeats);
+
+    where.value = lines.join("\n");
+
+    setCursorPosition(where, rows, cols);
+}
+
+const COMMAND_RE = /^(\d*)([\^\$AGIahi-lx]|dd|gg)|(^0)/;
 
 const normalCommands = [
     {
@@ -141,6 +158,10 @@ const normalCommands = [
     {
         key: "x",
         action: (w, r) => removeCharacter(w, r)
+    },
+    {
+        key: "dd",
+        action: (w, r) => removeLine(w, r)
     }
 ]
 
