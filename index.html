@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./textarea-vim.js"></script>
+    <style>
+        body {
+            font-family: "D2Coding", "Consolas", "Courier New", Courier, monospace;
+        }
+
+        .vim-label {
+            background-color: green;
+            padding: 4px 8px;
+            margin-right: 12px;
+            color: white;
+            border-radius: 4px;
+        }
+    </style>
+    <title>textarea-vim</title>
+</head>
+<body>
+    <textarea cols="80" rows="40" id="vim" autofocus spellcheck="false">
+use std::io::stdin;
+
+fn main() {
+    // get count of friends
+    let friends = {
+        let mut input = String::new();
+        stdin().read_line(&mut input).unwrap();
+
+        input.trim().parse::<u32>().unwrap()
+    };
+
+    // get costs of friends
+    let mut costs = Vec::new();
+    for _ in 0..friends {
+        let cost = {
+            let mut input = String::new();
+            stdin().read_line(&mut input).unwrap();
+
+            input.trim().parse::<u32>().unwrap()
+        };
+
+        costs.push(cost);
+    }
+    costs.sort();
+
+    // get the result count
+    let mut result = 0;
+    for i in 0..costs.len() {
+        if i as u32 == costs[i] {
+            result = i+1;
+            break;
+        }
+    };
+
+    println!("{}", result);
+}
+
+    </textarea>
+    <div>
+        <span class="vim-label" id="vim-mode">NORMAL</span>
+        <span class="vim-label" id="vim-buffer"></span>
+    </div>
+
+    <script>
+        const vim = document.querySelector("#vim");
+        vimify(vim);
+    </script>
+</body>
+</html>
