@@ -167,6 +167,15 @@ function newLineAfter(where, vim, dr) {
     setMode(vim, MODE_INSERT)
 }
 
+function insertAtCursor(where, value) {
+    const selectionPos = where.selectionStart;
+
+    where.value =
+        where.value.substring(0, selectionPos) + value + where.value.substring(selectionPos);
+    where.selectionStart = selectionPos + value.length;
+    where.selectionEnd = selectionPos + value.length;
+}
+
 const COMMAND_RE = /^(\d*)([\^\$AGIOSahi-loux]|dd|gg|<C-r>)|(^0)/;
 
 const normalCommands = [
@@ -312,6 +321,11 @@ function down(v, e) {
             v.buffer += e.key;
         }
         v.buffer = processBuffer(v.buffer, v.target, v);
+    } else if (v.mode === MODE_INSERT) {
+        if (e.key === "Tab") {
+            e.preventDefault();
+            insertAtCursor(v.target, "    ");
+        }
     }
 
     v.syncronizeLabels();
