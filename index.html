@@ -51,18 +51,17 @@ fn main() {
 }
 
     </textarea>
-    <div>
-        <span id="vim-mode">NORMAL</span>
-    </div>
-    <div>
-        <span id="vim-buffer"></span>
-    </div>
+
+    <div id="vim-mode">NORMAL</div>
+    <div id="vim-pos"></div>
+    <div id="vim-buffer"></div>
 
     <script>
         const vim = document.querySelector("#vim");
         const mode = document.querySelector("#vim-mode");
         const buffer = document.querySelector("#vim-buffer");
-        new Vim(vim, mode, buffer);
+        const pos = document.querySelector("#vim-pos");
+        new Vim(vim, mode, buffer, pos);
     </script>
 </body>
 </html>

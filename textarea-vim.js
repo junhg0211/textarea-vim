@@ -209,10 +209,11 @@ function down(v, e) {
 }
 
 class Vim {
-    constructor(target, modeSpan, bufferSpan) {
+    constructor(target, modeSpan, bufferSpan, posSpan) {
         this.target = target;
         this.modeSpan = modeSpan;
         this.bufferSpan = bufferSpan;
+        this.posSpan = posSpan;
 
         this.mode = MODE_NORMAL;
         this.buffer = "";
@@ -222,7 +223,15 @@ class Vim {
     }
 
     syncronizeLabels() {
-        this.bufferSpan.innerText = this.buffer;
-        this.modeSpan.innerText = this.mode;
+        if (this.bufferSpan) {
+            this.bufferSpan.innerText = this.buffer;
+        }
+        if (this.modeSpan) {
+            this.modeSpan.innerText = this.mode;
+        }
+        if (this.posSpan) {
+            const [rows, cols] = getCursorPosition(this.target);
+            this.posSpan.innerText = `${rows},${cols}`;
+        }
     }
 }
