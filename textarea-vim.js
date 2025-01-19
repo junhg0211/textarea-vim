@@ -11,7 +11,9 @@ function getCursorPosition(where) {
     return [rows, cols];
 }
 
-function setCursorPosition(where, rows, cols) {
+function setCursorPosition(where, rows, cols, force) {
+    force = force !== undefined;
+
     const lines = where.value.split(/\n/g);
 
     // rows
@@ -23,7 +25,11 @@ function setCursorPosition(where, rows, cols) {
     }
 
     // cols
-    cols = Math.min(lines[rows-1].length, Math.max(0, cols));
+    cols = Math.min(
+        lines[rows - 1].length - (force || lines[rows - 1].length === 0 ? 0 : 1),
+        Math.max(0, cols)
+    );
+    
 
     previousLength += cols;
 
