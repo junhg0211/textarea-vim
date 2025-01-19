@@ -143,7 +143,31 @@ function redoStack(where, repeats) {
     }
 }
 
-const COMMAND_RE = /^(\d*)([\^\$AGIahi-lux]|dd|gg|<C-r>)|(^0)/;
+function newLineAfter(where, vim, dr) {
+    dr = dr === undefined ? 0 : dr;
+
+    const [rows_] = getCursorPosition(where);
+    const lines = where.value.split(/\n/g);
+    const rows = rows_ + dr;
+
+    const previousLines = lines.splice(0, rows);
+    let content = "";
+    for (let i = 0; i < previousLines.length; i++) {
+        content += previousLines[i] + "\n";
+    }
+
+    content += "\n";
+
+    for (let i = 0; i < lines.length; i++) {
+        content += lines[i] + "\n";
+    }
+
+    where.value = content;
+    setCursorPosition(where, rows+1, 0);
+    setMode(vim, MODE_INSERT)
+}
+
+const COMMAND_RE = /^(\d*)([\^\$AGIOahi-loux]|dd|gg|<C-r>)|(^0)/;
 
 const normalCommands = [
     {
@@ -200,6 +224,14 @@ const normalCommands = [
     {
         key: "A",
         alias: "$a",
+    },
+    {
+        key: "o",
+        action: (w, r, v) => newLineAfter(w, v),
+    },
+    {
+        key: "O",
+        action: (w, r, v) => newLineAfter(w, v, -1),
     },
     {
         key: "x",
