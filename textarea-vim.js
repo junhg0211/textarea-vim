@@ -61,6 +61,7 @@ function lineifyCursor(where) {
 }
 
 function setMode(vim, mode) {
+    pushStack(vim.target);
     vim.mode = mode;
     lineifyCursor(vim.target);
     vim.syncronizeLabels();
@@ -81,6 +82,7 @@ function removeCharacter(where, repeats) {
         }
     }
 
+    pushStack(where);
     where.value = newValue;
     where.selectionStart = selectionPos;
     where.selectionEnd = selectionPos + 1;
@@ -92,12 +94,39 @@ function removeLine(where, repeats) {
     const [rows, cols] = getCursorPosition(where);
     lines.splice(rows-1, repeats);
 
+    pushStack(where);
     where.value = lines.join("\n");
 
     setCursorPosition(where, rows, cols);
 }
 
-const COMMAND_RE = /^(\d*)([\^\$AGIahi-lx]|dd|gg)|(^0)/;
+const stack = [];
+const MAX_STACK_SIZE = 80;
+
+function pushStack(where) {
+    while (stack.length >= MAX_STACK_SIZE) {
+        stack.splice(0, 1);
+    }
+
+    const [rows, cols] = getCursorPosition(where);
+    stack.push([where.value, rows, cols]);
+}
+
+function popStack(where, repeats) {
+    repeats = repeats === undefined ? 1 : repeats;
+
+    for (let i = 0; i < repeats; i++) {
+        if (stack.length === 0) {
+            break;
+        }
+
+        const [value, rows, cols] = stack.pop();
+        where.value = value;
+        setCursorPosition(where, rows, cols);
+    }
+}
+
+const COMMAND_RE = /^(\d*)([\^\$AGIahi-lux]|dd|gg)|(^0)/;
 
 const normalCommands = [
     {
@@ -162,6 +191,10 @@ const normalCommands = [
     {
         key: "dd",
         action: (w, r) => removeLine(w, r)
+    },
+    {
+        key: "u",
+        action: (w, r) => popStack(w, r)
     }
 ]
 
