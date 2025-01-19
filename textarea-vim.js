@@ -49,7 +49,7 @@ function homeCursor(where) {
     return setCursorPosition(where, rows, indentation);
 }
 
-const COMMAND_RE = /^(\d*)(!^0|[\^\$hj-l]|gg)/;
+const COMMAND_RE = /^(\d*)(!^0|[\^\$Ghj-l]|gg)/;
 
 const normalCommands = [
     {
@@ -92,6 +92,11 @@ const normalCommands = [
         alias: "",
         action: (w, r) => moveCursor(w, r, 0)
     },
+    {
+        key: "G",
+        alias: "",
+        action: (w, r) => setCursorPosition(w, r === 1 ? Infinity : r, 0)
+    }
 ]
 
 function processBuffer(buffer, where) {
