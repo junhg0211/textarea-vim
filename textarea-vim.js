@@ -167,7 +167,7 @@ function newLineAfter(where, vim, dr) {
     setMode(vim, MODE_INSERT)
 }
 
-const COMMAND_RE = /^(\d*)([\^\$AGIOahi-loux]|dd|gg|<C-r>)|(^0)/;
+const COMMAND_RE = /^(\d*)([\^\$AGIOSahi-loux]|dd|gg|<C-r>)|(^0)/;
 
 const normalCommands = [
     {
@@ -234,6 +234,10 @@ const normalCommands = [
         action: (w, r, v) => newLineAfter(w, v, -1),
     },
     {
+        key: "S",
+        alias: "ddO",
+    },
+    {
         key: "x",
         action: (w, r) => removeCharacter(w, r),
     },
@@ -254,6 +258,8 @@ const normalCommands = [
 function processBuffer(buffer, where, vim) {
     const originalBuffer = buffer;
     const [command, repeat, key, zero] = buffer.match(COMMAND_RE) || [];
+
+    console.log(buffer, command, repeat, key, zero);
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
