@@ -66,8 +66,8 @@ function processBuffer(buffer, where) {
     const originalBuffer = buffer;
     const [command, repeat, key] = buffer.match(COMMAND_RE) || [];
 
-    if (command === undefined) {
-        return "";
+    if (key === undefined) {
+        return buffer;
     }
 
     const repeats = parseInt(repeat) || 1;
@@ -93,7 +93,7 @@ function processBuffer(buffer, where) {
     return processBuffer(buffer, where);
 }
 
-function vimify(target) {
+function vimify(target, modeSpan, bufferSpan) {
     let mode = MODE_NORMAL;
     let buffer = "";
 
@@ -104,6 +104,8 @@ function vimify(target) {
             e.preventDefault();
             buffer = processBuffer(buffer, target);
         }
+
+        bufferSpan.innerText = buffer;
     }
 
     function down(e) {

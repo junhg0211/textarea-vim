@@ -8,14 +8,6 @@
         body {
             font-family: "D2Coding", "Consolas", "Courier New", Courier, monospace;
         }
-
-        .vim-label {
-            background-color: green;
-            padding: 4px 8px;
-            margin-right: 12px;
-            color: white;
-            border-radius: 4px;
-        }
     </style>
     <title>textarea-vim</title>
 </head>
@@ -60,13 +52,17 @@ fn main() {
 
     </textarea>
     <div>
-        <span class="vim-label" id="vim-mode">NORMAL</span>
-        <span class="vim-label" id="vim-buffer"></span>
+        <span id="vim-mode">NORMAL</span>
+    </div>
+    <div>
+        <span id="vim-buffer"></span>
     </div>
 
     <script>
         const vim = document.querySelector("#vim");
-        vimify(vim);
+        const mode = document.querySelector("#vim-mode");
+        const buffer = document.querySelector("#vim-buffer");
+        vimify(vim, mode, buffer);
     </script>
 </body>
 </html>
