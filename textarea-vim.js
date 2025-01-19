@@ -244,7 +244,32 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     // console.log(repeats, "d", mRepeats, mKey);
 }
 
-const COMMAND_RE = /^([1-9]\d*)?((dd|[\^\$AGIOSadhi-loux]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l]))?/;
+function replaceCharacter(where, repeats, args) {
+    const [rows, cols] = getCursorPosition(where);
+    let lines = where.value.split(/\n/g);
+
+    const line = lines[rows-1];
+    if (cols + repeats > line.length) {
+        return;
+    }
+
+    const newLine = line.substring(0, cols) + args.repeat(repeats) + line.substring(cols + repeats);
+    lines[rows-1] = newLine;
+
+    let previousLength = 0;
+    for (let i = 0; i < rows-1; i++) {
+        previousLength += lines[i].length + 1;
+    }
+    previousLength += cols + repeats - 1;
+
+    pushStack(where);
+    where.value = lines.join("\n");
+    where.selectionStart = previousLength;
+    where.selectionEnd = previousLength + 1;
+}
+
+const COMMAND_RE =
+    /^([1-9]\d*)?((dd|[\^\$AGIOSadhi-lorux]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
 
 const normalCommands = [
     {
@@ -282,6 +307,11 @@ const normalCommands = [
     {
         key: "G",
         action: (w, r) => setCursorPosition(w, r === 1 ? Infinity : r, 0),
+    },
+    {
+        key: "r",
+        action: (w, r, v, a) => replaceCharacter(w, r, a),
+        requireArgs: true,
     },
     {
         key: "i",
@@ -324,7 +354,7 @@ const normalCommands = [
     },
     {
         key: "d",
-        action: (w, r, v, mr, mk) => processDelete(w, r, v, mr, mk),
+        action: (w, r, v, a, mr, mk) => processDelete(w, r, v, mr, mk),
         requireArgs: true,
     },
     {
@@ -343,15 +373,16 @@ const normalCommands = [
 
 function processBuffer(buffer, where, vim) {
     const originalBuffer = buffer;
-    const [command, repeat, _a, key, zero, _b, mr, mk] =
+    const [command, repeat, _a, key, zero, arg, mr, mk] =
         buffer.match(COMMAND_RE) || [];
     const repeats = parseInt(repeat) || 1;
+    const args = arg === undefined ? "" : arg;
     const mRepeat = mr === undefined ? "" : mr;
     const mRepeats = parseInt(mRepeat) || 1;
     const mKey = mk === undefined ? "" : mk;
 
     if (command !== undefined) {
-        // console.log([command, repeat, key, mRepeat, mKey]);
+        console.log([command, repeat, key, args, mRepeat, mKey]);
     }
 
     if (zero !== undefined) {
@@ -374,10 +405,10 @@ function processBuffer(buffer, where, vim) {
         }
 
         if (normalCommand.requireArgs) {
-            if (mKey.length > 0) {
+            if (mKey.length > 0 || key == "r" && args.length > 0) {
                 buffer = buffer.substring(command.length);
                 run = true;
-                return normalCommand.action(where, repeats, vim, mRepeats, mKey);
+                return normalCommand.action(where, repeats, vim, args, mRepeats, mKey);
             }
         } else if (normalCommand.alias && normalCommand.alias.length > 0) {
             buffer =
