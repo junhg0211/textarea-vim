@@ -477,6 +477,9 @@ class Vim {
 
         target.addEventListener("keydown", (e) => down(this, e));
         target.addEventListener("keyup", (e) => up(this, e));
+
+        refreshCursorPosition(this.target);
+        this.syncronizeLabels();
     }
 
     syncronizeLabels() {
