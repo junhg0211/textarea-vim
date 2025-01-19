@@ -49,9 +49,14 @@ function homeCursor(where) {
     return setCursorPosition(where, rows, indentation);
 }
 
-const COMMAND_RE = /^(\d*)([0\^\$hj-l])/;
+const COMMAND_RE = /^(\d*)(!^0|[\^\$hj-l]|gg)/;
 
 const normalCommands = [
+    {
+        key: "gg",
+        alias: "",
+        action: (w, r) => setCursorPosition(w, r, 0)
+    },
     {
         key: "k",
         alias: "",
