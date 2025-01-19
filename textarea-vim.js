@@ -39,9 +39,15 @@ function setCursorPosition(where, rows, cols, force) {
     where.selectionEnd = previousLength;
 }
 
-function moveCursor(where, dr, dc) {
+function refreshCursorPosition(where) {
     const [rows, cols] = getCursorPosition(where);
-    setCursorPosition(where, rows + dr, cols + dc)
+    return setCursorPosition(where, rows, cols);
+}
+
+function moveCursor(where, dr, dc, force) {
+    force = force === undefined ? undefined : true;
+    const [rows, cols] = getCursorPosition(where);
+    return setCursorPosition(where, rows + dr, cols + dc, force);
 }
 
 function homeCursor(where) {
@@ -55,7 +61,7 @@ function setMode(vim, mode) {
     vim.syncronizeLabels();
 }
 
-const COMMAND_RE = /^(\d*)([\^\$Ghi-l]|gg)|(^0)/;
+const COMMAND_RE = /^(\d*)([\^\$Gahi-l]|gg)|(^0)/;
 
 const normalCommands = [
     {
@@ -107,6 +113,14 @@ const normalCommands = [
         key: "i",
         alias: "",
         action: (w, r, v) => setMode(v, MODE_INSERT)
+    },
+    {
+        key: "a",
+        alias: "",
+        action: (w, r, v) => {
+            moveCursor(w, 0, 1, true);
+            setMode(v, MODE_INSERT);
+        }
     }
 ]
 
@@ -160,6 +174,7 @@ function down(v, e) {
     if (e.key === "Escape") {
         v.buffer = "";
         v.mode = MODE_NORMAL;
+        refreshCursorPosition(v.target);
     }
 
     if (e.key === "Backspace") {
@@ -172,7 +187,6 @@ function down(v, e) {
 
     v.syncronizeLabels();
 }
-
 
 class Vim {
     constructor(target, modeSpan, bufferSpan) {
