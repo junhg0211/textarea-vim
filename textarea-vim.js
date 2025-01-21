@@ -269,60 +269,44 @@ function replaceCharacter(where, repeats, args) {
     where.selectionEnd = previousLength + 1;
 }
 
-const Word_RE = /([^\n\t `~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+|[\n\t`~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+)/g;
+const Word_RE = /([^ \n\t\r`~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+|[\n\t\r`~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+)/g;
+const WORD_RE = /[^ \n\t]+/g;
 
-function getWordPosition(where, repeats) {
-    const words = [...where.value.matchAll(Word_RE)];
+function getWordPosition(where, repeats, isWORD, toEnd) {
+    const words = [...where.value.matchAll(isWORD ? WORD_RE : Word_RE)];
     const selectionPos = where.selectionStart;
 
     let index;
     for (index = 0; index < words.length; index++) {
         const word = words[index];
-        if (word.index > selectionPos) {
+        if (word.index + (toEnd ? word[0].length : 0) > selectionPos) {
             break;
         }
     }
 
     repeats--;
 
-    return words[index + repeats].index;
+    return words[index + repeats].index + (toEnd ? words[index + repeats][0].length - 1 : 0);
 }
 
-function moveWord(where, repeats) {
-    const position = getWordPosition(where, repeats);
+function moveWord(where, repeats, isWORD, toEnd) {
+    const previousSelectionStart = where.selectionStart;
+
+    const position = getWordPosition(where, repeats, isWORD, toEnd);
     where.selectionStart = position;
     where.selectionEnd = position + 1;
-}
+    refreshCursorPosition(where);
 
-const WORD_RE = /[^ \n\t]+/g;
-
-function getWORDPosition(where, repeats) {
-    const WORDS = [...where.value.matchAll(WORD_RE)];
-    const selectionPos = where.selectionStart;
-
-    let index;
-    for (index = 0; index < WORDS.length; index++) {
-        const word = WORDS[index];
-        if (word.index > selectionPos) {
-            break;
-        }
+    console.log(previousSelectionStart, where.selectionStart);
+    if (previousSelectionStart === where.selectionStart) {
+        where.selectionStart++;
+        where.selectionEnd++;
+        return moveWord(where, repeats, isWORD, toEnd);
     }
-
-    if (repeats >= 1) {
-        repeats--;
-    }
-
-    return WORDS[index + repeats].index;
-}
-
-function moveWORD(where, repeats) {
-    const position = getWORDPosition(where, repeats);
-    where.selectionStart = position;
-    where.selectionEnd = position + 1;
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[\^\$ABGIOSWa-bdhi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
+    /^([1-9]\d*)?((dd|[\^\$ABEGIOSWa-bd-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
 
 const normalCommands = [
     {
@@ -358,8 +342,16 @@ const normalCommands = [
         action: (w, r) => moveWord(w, r),
     },
     {
+        key: "e",
+        action: (w, r) => moveWord(w, r, false, true),
+    },
+    {
         key: "W",
-        action: (w, r) => moveWORD(w, r),
+        action: (w, r) => moveWord(w, r, true),
+    },
+    {
+        key: "E",
+        action: (w, r) => moveWord(w, r, true, true),
     },
     {
         key: "$",
