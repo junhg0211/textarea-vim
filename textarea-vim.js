@@ -286,7 +286,7 @@ function getWordPosition(where, repeats) {
         repeats--;
     }
 
-    return words[index].index + repeats;
+    return words[index + repeats].index;
 }
 
 function moveWord(where, repeats) {
@@ -313,7 +313,7 @@ function getWORDPosition(where, repeats) {
         repeats--;
     }
 
-    return WORDS[index].index + repeats;
+    return WORDS[index + repeats].index;
 }
 
 function moveWORD(where, repeats) {
