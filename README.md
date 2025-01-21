@@ -1,5 +1,7 @@
 # textarea-vim
 
+<img src="./logo.svg" style="width: 180px;">
+
 > Javascript CDN for using textarea as like it's vim.
 
 The purpose of this project is to make Javascript vim implementation on textarea tag as perfect as can. It is impossible to implement full vim feature on textarea, as there have lacks of system access, however, using vim on textarea conditionally is literally possible.
