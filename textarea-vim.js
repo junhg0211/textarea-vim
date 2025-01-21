@@ -37,9 +37,10 @@ function setCursorPosition(where, rows, cols, force) {
     where.selectionEnd = previousLength + 1;
 }
 
-function refreshCursorPosition(where) {
+function refreshCursorPosition(where, dc) {
+    dc = dc === undefined ? 0 : dc;
     const [rows, cols] = getCursorPosition(where);
-    return setCursorPosition(where, rows, cols);
+    return setCursorPosition(where, rows, cols + dc);
 }
 
 function moveCursor(where, dr, dc, force) {
@@ -282,9 +283,7 @@ function getWordPosition(where, repeats) {
         }
     }
 
-    if (repeats >= 1) {
-        repeats--;
-    }
+    repeats--;
 
     return words[index + repeats].index;
 }
@@ -323,7 +322,7 @@ function moveWORD(where, repeats) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[\^\$AGIOSWadhi-loruwx]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
+    /^([1-9]\d*)?((dd|[\^\$ABGIOSWa-bdhi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
 
 const normalCommands = [
     {
@@ -341,6 +340,10 @@ const normalCommands = [
     {
         key: "^",
         action: (w) => homeCursor(w),
+    },
+    {
+        key: "b",
+        action: (w, r) => moveWord(w, -r),
     },
     {
         key: "h",
@@ -443,11 +446,9 @@ function processBuffer(buffer, where, vim) {
     const mRepeats = parseInt(mRepeat) || 1;
     const mKey = mk === undefined ? "" : mk;
 
-    /*
     if (command !== undefined) {
         console.log([command, repeat, key, args, mRepeat, mKey]);
     }
-    */
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
@@ -468,6 +469,8 @@ function processBuffer(buffer, where, vim) {
             return;
         }
 
+        const extraLength = args.length + mRepeat.length + mKey.length;
+
         if (normalCommand.requireArgs) {
             if (mKey.length > 0 || key == "r" && args.length > 0) {
                 buffer = buffer.substring(command.length);
@@ -476,14 +479,12 @@ function processBuffer(buffer, where, vim) {
             }
         } else if (normalCommand.alias && normalCommand.alias.length > 0) {
             buffer =
-                `${repeat}${normalCommand.alias}` +
-                `${buffer.substring(
-                    command.length - mRepeat.length - mKey.length
-                )}`;
+                `${repeats === 1 ? "" : repeats}${normalCommand.alias}` +
+                `${buffer.substring(command.length - extraLength)}`;
             run = true;
             return processBuffer(buffer, where, vim);
         } else {
-            buffer = buffer.substring(command.length - mRepeat.length - mKey.length);
+            buffer = buffer.substring(command.length - extraLength);
             run = true;
             return normalCommand.action(where, repeats, vim);
         }
@@ -500,7 +501,7 @@ function down(v, e) {
     if (e.key === "Escape") {
         v.buffer = "";
         v.mode = MODE_NORMAL;
-        refreshCursorPosition(v.target);
+        refreshCursorPosition(v.target, -1);
     } else if (e.key === "Backspace") {
         if (v.mode === MODE_NORMAL) {
             e.preventDefault();
