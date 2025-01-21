@@ -268,8 +268,62 @@ function replaceCharacter(where, repeats, args) {
     where.selectionEnd = previousLength + 1;
 }
 
+const Word_RE = /([^\n\t `~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+|[\n\t`~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+)/g;
+
+function getWordPosition(where, repeats) {
+    const words = [...where.value.matchAll(Word_RE)];
+    const selectionPos = where.selectionStart;
+
+    let index;
+    for (index = 0; index < words.length; index++) {
+        const word = words[index];
+        if (word.index > selectionPos) {
+            break;
+        }
+    }
+
+    if (repeats >= 1) {
+        repeats--;
+    }
+
+    return words[index].index + repeats;
+}
+
+function moveWord(where, repeats) {
+    const position = getWordPosition(where, repeats);
+    where.selectionStart = position;
+    where.selectionEnd = position + 1;
+}
+
+const WORD_RE = /[^ \n\t]+/g;
+
+function getWORDPosition(where, repeats) {
+    const WORDS = [...where.value.matchAll(WORD_RE)];
+    const selectionPos = where.selectionStart;
+
+    let index;
+    for (index = 0; index < WORDS.length; index++) {
+        const word = WORDS[index];
+        if (word.index > selectionPos) {
+            break;
+        }
+    }
+
+    if (repeats >= 1) {
+        repeats--;
+    }
+
+    return WORDS[index].index + repeats;
+}
+
+function moveWORD(where, repeats) {
+    const position = getWORDPosition(where, repeats);
+    where.selectionStart = position;
+    where.selectionEnd = position + 1;
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[\^\$AGIOSadhi-lorux]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
+    /^([1-9]\d*)?((dd|[\^\$AGIOSWadhi-loruwx]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
 
 const normalCommands = [
     {
@@ -295,6 +349,14 @@ const normalCommands = [
     {
         key: "l",
         action: (w, r) => moveCursor(w, 0, r),
+    },
+    {
+        key: "w",
+        action: (w, r) => moveWord(w, r),
+    },
+    {
+        key: "W",
+        action: (w, r) => moveWORD(w, r),
     },
     {
         key: "$",
@@ -381,9 +443,11 @@ function processBuffer(buffer, where, vim) {
     const mRepeats = parseInt(mRepeat) || 1;
     const mKey = mk === undefined ? "" : mk;
 
+    /*
     if (command !== undefined) {
         console.log([command, repeat, key, args, mRepeat, mKey]);
     }
+    */
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
