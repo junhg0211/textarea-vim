@@ -297,7 +297,6 @@ function moveWord(where, repeats, isWORD, toEnd) {
     where.selectionEnd = position + 1;
     refreshCursorPosition(where);
 
-    console.log(previousSelectionStart, where.selectionStart);
     if (previousSelectionStart === where.selectionStart) {
         where.selectionStart++;
         where.selectionEnd++;
@@ -305,8 +304,40 @@ function moveWord(where, repeats, isWORD, toEnd) {
     }
 }
 
+function changeCaps(where, repeats) {
+    const [rows, cols] = getCursorPosition(where);
+
+    const lines = where.value.split(/\n/g);
+    const previousLines = lines.splice(0, rows-1);
+    const nextLines = lines.splice(1);
+    const currentLine = lines[0];
+
+    const left = currentLine.substring(0, cols);
+    const middle = currentLine.substring(cols, cols + repeats);
+    const right = currentLine.substring(cols + repeats);
+
+    let changes = "";
+    for (let i = 0; i < middle.length; i++) {
+        if ("a" <= middle[i] && middle[i] <= "z") {
+            changes += middle[i].toUpperCase();
+            continue;
+        }
+
+        if ("A" <= middle[i] && middle[i] <= "Z") {
+            changes += middle[i].toLowerCase();
+            continue;
+        }
+    }
+    const newLine = left + changes + right;
+
+    const newContent = [...previousLines, newLine, ...nextLines].join("\n");
+    pushStack(where);
+    where.value = newContent;
+    setCursorPosition(where, rows, cols + repeats);
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[\^\$ABEGIOSWa-bd-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\^\$0Ghj-l])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^ABEGIOSWa-bd-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0Ghj-l])|.)?/;
 
 const normalCommands = [
     {
@@ -369,6 +400,10 @@ const normalCommands = [
         key: "r",
         action: (w, r, v, a) => replaceCharacter(w, r, a),
         requireArgs: true,
+    },
+    {
+        key: "~",
+        action: (w, r) => changeCaps(w, r),
     },
     {
         key: "i",
@@ -438,9 +473,11 @@ function processBuffer(buffer, where, vim) {
     const mRepeats = parseInt(mRepeat) || 1;
     const mKey = mk === undefined ? "" : mk;
 
+    /*
     if (command !== undefined) {
         console.log([command, repeat, key, args, mRepeat, mKey]);
     }
+    */
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
