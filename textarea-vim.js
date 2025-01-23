@@ -493,6 +493,7 @@ function down(v, e) {
     if (e.key === "Escape") {
         const nowMode = v.mode;
         setMode(v, MODE_NORMAL);
+        v.buffer = "";
         refreshCursorPosition(v.target, nowMode === MODE_NORMAL ? 0 : -1);
     } else if (e.key === "Backspace") {
         if (v.mode === MODE_NORMAL) {
