@@ -491,9 +491,9 @@ function processBuffer(buffer, where, vim) {
 
 function down(v, e) {
     if (e.key === "Escape") {
-        v.buffer = "";
-        v.mode = MODE_NORMAL;
-        refreshCursorPosition(v.target, -1);
+        const nowMode = v.mode;
+        setMode(v, MODE_NORMAL);
+        refreshCursorPosition(v.target, nowMode === MODE_NORMAL ? 0 : -1);
     } else if (e.key === "Backspace") {
         if (v.mode === MODE_NORMAL) {
             e.preventDefault();
