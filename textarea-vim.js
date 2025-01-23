@@ -269,7 +269,7 @@ function replaceCharacter(where, repeats, args) {
     where.selectionEnd = previousLength + 1;
 }
 
-const Word_RE = /([^ \n\t\r`~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+|[\n\t\r`~!@#$%^&*()_+\-=,.<>/?;:'"[{\]}]+)/g;
+const Word_RE = /([^ \n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+|[\n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+)/g;
 const WORD_RE = /[^ \n\t]+/g;
 
 function getWordPosition(where, repeats, isWORD, toEnd) {
@@ -279,7 +279,7 @@ function getWordPosition(where, repeats, isWORD, toEnd) {
     let index;
     for (index = 0; index < words.length; index++) {
         const word = words[index];
-        if (word.index + (toEnd ? word[0].length : 0) > selectionPos) {
+        if (word.index + (toEnd ? word[0].length - 1 : 0) > selectionPos) {
             break;
         }
     }
