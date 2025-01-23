@@ -242,6 +242,20 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         processBuffer(`${lineCount - rows + 1}dd0`, where, vim);
     }
 
+    if (mKey === "w" || mKey === "W" || mKey === "e" || mKey === "E") {
+        const isEnd = mKey.toLowerCase() === "e"
+        const isWORD = mKey.toUpperCase() === mKey;
+        const wordPosition =
+          getWordPosition(where, mRepeats, isWORD, isEnd) + (isEnd ? 1 : 0);
+
+        const left = where.value.substring(0, where.selectionStart);
+        const content = left + where.value.substring(wordPosition);
+        pushStack(where);
+        where.value = content;
+        where.selectionStart = left.length;
+        where.selectionEnd = left.length + 1;
+    }
+
     // console.log(repeats, "d", mRepeats, mKey);
 }
 
@@ -337,7 +351,7 @@ function changeCaps(where, repeats) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^ABEGIOSWa-bd-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0Ghj-l])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^ABEGIOSWa-bd-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0DGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
