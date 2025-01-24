@@ -366,7 +366,7 @@ function processChange(where, repeats, vim, mRepeats, mKey) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^ABEGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0DGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0DGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -436,6 +436,10 @@ const normalCommands = [
         requireArgs: true,
     },
     {
+        key: "C",
+        action: (w, r, v) => processBuffer("Da", w, v),
+    },
+    {
         key: "~",
         action: (w, r) => changeCaps(w, r),
     },
@@ -482,6 +486,10 @@ const normalCommands = [
         key: "d",
         action: (w, r, v, a, mr, mk) => processDelete(w, r, v, mr, mk),
         requireArgs: true,
+    },
+    {
+        key: "D",
+        action: (w, r, v) => processBuffer("d$", w, v),
     },
     {
         key: "dd",
@@ -571,6 +579,12 @@ function down(v, e) {
             e.preventDefault();
             v.buffer = "";
             moveCursor(v.target, 0, -1);
+        }
+    } else if (e.key === "Enter") {
+        if (v.mode === MODE_NORMAL) {
+            e.preventDefault();
+            v.buffer = "";
+            moveCursor(v.target, 1, 0);
         }
     } else if (v.mode === MODE_NORMAL && e.key.length <= 1) {
         e.preventDefault();
