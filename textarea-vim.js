@@ -455,8 +455,37 @@ function processChange(where, repeats, vim, mRepeats, mKey) {
     }
 }
 
+function moveFind(where, repeats, args, isT) {
+    isT = isT !== undefined;
+
+    const [rows, cols] = getCursorPosition(where);
+    const lines = where.value.split(/\n/g);
+    const line = lines[rows-1];
+    const right = line.substring(cols);
+
+    let count = 0;
+    let i;
+    let found = false;
+    for (i = 1; i < right.length; i++) {
+        if (right[i] === args) {
+            count++;
+        }
+
+        if (count === repeats) {
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        return;
+    }
+
+    moveCursor(where, 0, i - (isT ? 1 : 0));
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][()Ww]|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-fhi-lort-uw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][()Ww]|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -508,6 +537,16 @@ const normalCommands = [
         action: (w, r) => moveWord(w, r, true, true),
     },
     {
+        key: "t",
+        action: (w, r, v, a) => moveFind(w, r, a, true),
+        requireArg: true,
+    },
+    {
+        key: "f",
+        action: (w, r, v, a) => moveFind(w, r, a),
+        requireArg: true,
+    },
+    {
         key: "$",
         action: (w) => moveCursor(w, 0, Infinity),
     },
@@ -522,7 +561,7 @@ const normalCommands = [
     {
         key: "r",
         action: (w, r, v, a) => replaceCharacter(w, r, a),
-        requireArgs: true,
+        requireArg: true,
     },
     {
         key: "c",
@@ -635,8 +674,8 @@ function processBuffer(buffer, where, vim) {
 
         const extraLength = args.length + mRepeat.length + mKey.length;
 
-        if (normalCommand.requireArgs) {
-            if (mKey.length > 0 || (key == "r" && args.length > 0)) {
+        if (normalCommand.requireArgs || normalCommand.requireArg) {
+            if (mKey.length > 0 || (normalCommand.requireArg && args.length > 0)) {
                 buffer = buffer.substring(command.length);
                 run = true;
                 return normalCommand.action(where, repeats, vim, args, mRepeats, mKey);
