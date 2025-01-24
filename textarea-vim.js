@@ -11,8 +11,9 @@ function getCursorPosition(where) {
     return [rows, cols];
 }
 
-function setCursorPosition(where, rows, cols, force) {
+function setCursorPosition(where, rows, cols, force, isInsertMode) {
     force = force !== undefined;
+    isInsertMode = isInsertMode !== undefined;
 
     const lines = where.value.split(/\n/g);
 
@@ -34,7 +35,7 @@ function setCursorPosition(where, rows, cols, force) {
 
     // set position
     where.selectionStart = previousLength;
-    where.selectionEnd = previousLength + 1;
+    where.selectionEnd = previousLength + (isInsertMode ? 0 : 1);
 }
 
 function refreshCursorPosition(where, dc) {
@@ -43,10 +44,11 @@ function refreshCursorPosition(where, dc) {
     return setCursorPosition(where, rows, cols + dc);
 }
 
-function moveCursor(where, dr, dc, force) {
+function moveCursor(where, dr, dc, force, isInsertMode) {
     force = force === undefined ? undefined : true;
+    isInsertMode = isInsertMode === undefined ? undefined : true;
     const [rows, cols] = getCursorPosition(where);
-    return setCursorPosition(where, rows + dr, cols + dc, force);
+    return setCursorPosition(where, rows + dr, cols + dc, force, isInsertMode);
 }
 
 function homeCursor(where) {
@@ -60,7 +62,10 @@ function lineifyCursor(where) {
 }
 
 function setMode(vim, mode) {
-    pushStack(vim.target);
+    if (vim.mode === mode) {
+        return;
+    }
+
     vim.mode = mode;
     lineifyCursor(vim.target);
     vim.syncronizeLabels();
@@ -177,11 +182,13 @@ function insertAtCursor(where, value) {
     where.selectionEnd = selectionPos + value.length;
 }
 
+const LEFT = "LEFT";
+const RIGHT = "RIGHT";
 function processDelete(where, repeats, vim, mRepeats, mKey) {
     if (mKey === "gg") {
         const [rows] = getCursorPosition(where);
         processBuffer(`gg${rows}dd`, where, vim);
-        return;
+        return LEFT;
     }
 
     if (mKey === "k") {
@@ -190,13 +197,13 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
             where,
             vim
         );
-        return;
+        return RIGHT;
     }
 
     if (mKey === "0") {
         const [_, cols] = getCursorPosition(where);
         processBuffer(`0${cols-1}x`, where, vim);
-        return;
+        return LEFT;
     }
 
     if (mKey === "^") {
@@ -204,42 +211,40 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const indentation = where.value.split(/\n/g)[rows-1].match(/^[ \t]+/)[0].length;
         if (cols > indentation) {
             processBuffer(`^${cols-indentation}x`, where, vim);
+            return LEFT;
         } else {
             processBuffer(`^${indentation-cols}dh`, where, vim);
+            return RIGHT;
         }
-        return;
     }
 
     if (mKey === "h") {
-        processBuffer(
-            `${repeats * mRepeats}${mKey}${repeats * mRepeats}x`,
-            where,
-            vim
-        );
-        return;
+        processBuffer(`${repeats * mRepeats}${mKey}${repeats * mRepeats}x`, where, vim);
+        return LEFT;
     }
 
     if (mKey === "l") {
         processBuffer(`${repeats * mRepeats}x`, where, vim);
-        return;
+        return RIGHT;
     }
 
     if (mKey === "$") {
         const [rows, cols] = getCursorPosition(where);
         const charCount = where.value.split(/\n/g)[rows-1].length;
         processBuffer(`${charCount - cols}x`, where, vim);
-        return;
+        return RIGHT;
     }
 
     if (mKey === "j") {
         processBuffer(`${repeats * mRepeats + 1}dd`, where, vim);
-        return;
+        return RIGHT;
     }
 
     if (mKey === "G") {
         const [rows] = getCursorPosition(where);
         const lineCount = where.value.split(/\n/g).length;
         processBuffer(`${lineCount - rows + 1}dd0`, where, vim);
+        return RIGHT
     }
 
     if (mKey === "w" || mKey === "W" || mKey === "e" || mKey === "E") {
@@ -254,6 +259,8 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         where.value = content;
         where.selectionStart = left.length;
         where.selectionEnd = left.length + 1;
+
+        return RIGHT;
     }
 
     // console.log(repeats, "d", mRepeats, mKey);
@@ -350,8 +357,16 @@ function changeCaps(where, repeats) {
     setCursorPosition(where, rows, cols + repeats);
 }
 
+function processChange(where, repeats, vim, mRepeats, mKey) {
+    const direction = processDelete(where, repeats, vim, mRepeats, mKey);
+    setMode(vim, MODE_INSERT);
+    if (direction === RIGHT) {
+        moveCursor(where, 0, 1, true, true);
+    }
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^ABEGIOSWa-bd-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0DGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^ABEGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0DGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -413,6 +428,11 @@ const normalCommands = [
     {
         key: "r",
         action: (w, r, v, a) => replaceCharacter(w, r, a),
+        requireArgs: true,
+    },
+    {
+        key: "c",
+        action: (w, r, v, a, mr, mk) => processChange(w, r, v, mr, mk),
         requireArgs: true,
     },
     {
