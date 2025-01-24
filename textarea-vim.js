@@ -173,8 +173,8 @@ function newLineAfter(where, vim, dr) {
     }
 
     where.value = content;
-    setCursorPosition(where, rows + 1, 0);
     setMode(vim, MODE_INSERT);
+    setCursorPosition(where, rows + 1, 0, undefined, true);
 }
 
 function insertAtCursor(where, value) {
