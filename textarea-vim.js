@@ -321,16 +321,36 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         return LEFT;
     }
 
-    if (mKey === "i(" || mKey === "i)" || mKey === "a(" || mKey === "a)") {
+    if (
+        mKey === "i(" || mKey === "i)" || mKey === "a(" || mKey === "a)"
+        || mKey === "i{" || mKey === "i}" || mKey === "a{" || mKey === "a}"
+        || mKey === "i[" || mKey === "i]" || mKey === "a[" || mKey === "a]"
+        || mKey === "i<" || mKey === "i>" || mKey === "a<" || mKey === "a>"
+    ) {
         const isIn = mKey[0] === 'i';
+
+        let openingParenthesis, closingParenthesis;
+        if (mKey[1] === "(" || mKey[1] === ")") {
+            openingParenthesis = "(";
+            closingParenthesis = ")";
+        } else if (mKey[1] === "{" || mKey[1] === "}") {
+            openingParenthesis = "{";
+            closingParenthesis = "}";
+        } else if (mKey[1] === "[" || mKey[1] === "]") {
+            openingParenthesis = "[";
+            closingParenthesis = "]";
+        } else if (mKey[1] === "<" || mKey[1] === ">") {
+            openingParenthesis = "<";
+            closingParenthesis = ">";
+        }
 
         // -- if cursor is in parenthesis
         const selectionEnd = where.selectionEnd;
         const parenthesisStack = [];
         for (let i = 0; i < where.value.length; i++) {
-            if (where.value[i] === "(" && i < selectionEnd) {
+            if (where.value[i] === openingParenthesis && i < selectionEnd) {
                 parenthesisStack.push(i);
-            } else if (where.value[i] === ")") {
+            } else if (where.value[i] === closingParenthesis) {
                 if (i > selectionEnd) {
                     if (parenthesisStack.length === 0) {
                         break;
@@ -360,7 +380,17 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const left = line.substring(0, cols);
         const right = line.substring(cols);
 
-        const match = right.match(/^([^\(]*\()([^)]*)(\).*)$/);
+        let match;
+        // const match = right.match(/^([^\(]*\()([^)]*)(\).*)$/);
+        if (openingParenthesis === "(") {
+            match = right.match(/^([^\(]*\()([^)]*)(\).*)$/);
+        } else if (openingParenthesis === "{") {
+            match = right.match(/^([^\{]*\{)([^\}]*)(\}.*)$/);
+        } else if (openingParenthesis === "[") {
+            match = right.match(/^([^\[]*\[)([^\]]*)(\].*)$/);
+        } else if (openingParenthesis === "<") {
+            match = right.match(/^([^\>]*\<)([^\>]*)(\>.*)$/);
+        }
         
         if (match === null) {
             return LEFT;
@@ -523,8 +553,42 @@ function moveFind(where, repeats, args, isT) {
     moveCursor(where, 0, i - (isT ? 1 : 0));
 }
 
+function changeIndent(where, repeats) {
+    const lines = where.value.split(/\n/g);
+    const [rows, cols] = getCursorPosition(where);
+    const previousLines = lines.splice(0, rows-1);
+    const nextLines = lines.splice(repeats * (repeats < 0 ? -1 : 1));
+
+    const newlines = [];
+    for (let i = 0; i < repeats * (repeats < 0 ? -1 : 1); i++) {
+        const line = lines[i];
+
+        if (repeats >= 1) {
+            newlines.push("    " + line);
+        } else {
+            const match = line.match(/^ +/);
+            if (match === null) {
+                return;
+            }
+
+            const indents = match[0].length;
+            const subtracts = Math.min(4, indents);
+            newlines.push(line.substring(subtracts));
+        }
+    }
+
+    const newLines = [...previousLines, ...newlines, ...nextLines];
+    const newContent = newLines.join("\n");
+
+    const selectionPos = where.selectionStart;
+    pushStack(where);
+    where.value = newContent;
+    where.selectionStart = selectionPos;
+    where.selectionEnd = selectionPos + 1;
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-fhi-lort-uw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][()Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSWa-fhi-lort-uw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -614,6 +678,14 @@ const normalCommands = [
     {
         key: "~",
         action: (w, r) => changeCaps(w, r),
+    },
+    {
+        key: ">>",
+        action: (w, r) => changeIndent(w, r),
+    },
+    {
+        key: "<<",
+        action: (w, r) => changeIndent(w, -r),
     },
     {
         key: "i",
