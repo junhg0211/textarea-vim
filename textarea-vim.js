@@ -259,22 +259,22 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (mKey === "iw") {
-        processBuffer("wbce", where, vim);
+        processBuffer(`wbc${mRepeats}e`, where, vim);
     }
 
     if (mKey === "iW") {
-        processBuffer("WBcE", where, vim);
+        processBuffer(`WBc${mRepeats}E`, where, vim);
     }
 
     if (mKey === "aw") {
-        processBuffer("wbcw", where, vim);
+        processBuffer(`wbc${mRepeats}w`, where, vim);
     }
 
     if (mKey === "aW") {
-        processBuffer("WBcW", where, vim);
+        processBuffer(`WBc${mRepeats}W`, where, vim);
     }
 
-    console.log(repeats, "d", mRepeats, mKey);
+    // console.log(repeats, "d", mRepeats, mKey);
 }
 
 function replaceCharacter(where, repeats, args) {
