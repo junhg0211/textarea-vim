@@ -262,6 +262,45 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         return LEFT;
     }
 
+    if (mKey[0] === "f" || mKey[0] === "t") {
+        const isF = mKey[0] === "f";
+        const target = mKey[1];
+        
+        const [rows, cols] = getCursorPosition(where);
+        const lines = where.value.split(/\n/g);
+        const line = lines[rows-1];
+
+        let i;
+        let found = false;
+        let count = 0;
+        for (i = cols; i < line.length; i++) {
+            if (line[i] === target) {
+                count++;
+            }
+
+            if (count === repeats * mRepeats) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return LEFT;
+        }
+
+        const newLine = line.substring(0, cols) + line.substring(i + (isF ? 1 : 0));
+        const previousLines = lines.splice(0, rows-1);
+        const nextLines = lines.splice(1);
+        const newLines = [...previousLines, newLine, ...nextLines];
+        const newContent = newLines.join("\n");
+
+        const selectionPos = where.selectionStart;
+        pushStack(where);
+        where.value = newContent;
+        where.selectionStart = selectionPos;
+        where.selectionEnd = selectionPos + 1;
+    }
+
     if (mKey === "iw") {
         processBuffer(`wbc${mRepeats}e`, where, vim);
         return LEFT;
@@ -485,7 +524,7 @@ function moveFind(where, repeats, args, isT) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-fhi-lort-uw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][()Ww]|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-fhi-lort-uw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][()Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
