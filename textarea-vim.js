@@ -66,6 +66,10 @@ function setMode(vim, mode) {
         return;
     }
 
+    if (vim.mode === MODE_NORMAL) {
+        pushStack(vim.target);
+    }
+
     vim.mode = mode;
     lineifyCursor(vim.target);
     vim.syncronizeLabels();
@@ -278,7 +282,9 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         return LEFT;
     }
 
-    if (mKey === "i(" || mKey === "i)") {
+    if (mKey === "i(" || mKey === "i)" || mKey === "a(" || mKey === "a)") {
+        const isIn = mKey[0] === 'i';
+
         // -- if cursor is in parenthesis
         const selectionEnd = where.selectionEnd;
         const parenthesisStack = [];
@@ -294,9 +300,11 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
                     const [start, end] = [parenthesisStack.pop(), i];
 
                     pushStack(where);
-                    where.value = where.value.substring(0, start + 1) + where.value.substring(end);
-                    where.selectionStart = start + 1;
-                    where.selectionEnd = start + 2;
+                    where.value =
+                        where.value.substring(0, start + (isIn ? 1 : 0)) +
+                        where.value.substring(end + (isIn ? 0 : 1));
+                    where.selectionStart = start + (isIn ? 1 : 0);
+                    where.selectionEnd = start + (isIn ? 2 : 1);
 
                     return LEFT;
                 }
@@ -306,7 +314,37 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         }
 
         // -- if line afterwards contains parenthesis
-        // TODO: HERE
+        const lines = where.value.split(/\n/g);
+        const [rows, cols] = getCursorPosition(where);
+        const line = lines[rows-1];
+
+        const left = line.substring(0, cols);
+        const right = line.substring(cols);
+
+        const match = right.match(/^([^\(]*\()([^)]*)(\).*)$/);
+        
+        if (match === null) {
+            return LEFT;
+        }
+
+        const [_match, mid1, _content, mid2] = match;
+        const middle =
+            left + mid1.substring(0, mid1.length - (isIn ? 0 : 1)) + mid2.substring(isIn ? 0 : 1);
+        
+        const previous = lines.splice(0, rows-1);
+        const next = lines.splice(1);
+        const newLines = [...previous, middle, ...next]
+
+        let selectionStart = left.length + mid1.length;
+        previous.forEach((line) => (selectionStart += line.length + 1));
+
+        const newContent = newLines.join("\n");
+        pushStack(where);
+        where.value = newContent;
+        where.selectionStart = selectionStart;
+        where.selectionEnd = selectionStart + 1;
+
+        return LEFT;
     }
 
     // console.log(repeats, "d", mRepeats, mKey);
