@@ -260,18 +260,53 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
     if (mKey === "iw") {
         processBuffer(`wbc${mRepeats}e`, where, vim);
+        return LEFT;
     }
 
     if (mKey === "iW") {
         processBuffer(`WBc${mRepeats}E`, where, vim);
+        return LEFT;
     }
 
     if (mKey === "aw") {
         processBuffer(`wbc${mRepeats}w`, where, vim);
+        return LEFT;
     }
 
     if (mKey === "aW") {
         processBuffer(`WBc${mRepeats}W`, where, vim);
+        return LEFT;
+    }
+
+    if (mKey === "i(" || mKey === "i)") {
+        // -- if cursor is in parenthesis
+        const selectionEnd = where.selectionEnd;
+        const parenthesisStack = [];
+        for (let i = 0; i < where.value.length; i++) {
+            if (where.value[i] === "(" && i < selectionEnd) {
+                parenthesisStack.push(i);
+            } else if (where.value[i] === ")") {
+                if (i > selectionEnd) {
+                    if (parenthesisStack.length === 0) {
+                        break;
+                    }
+
+                    const [start, end] = [parenthesisStack.pop(), i];
+
+                    pushStack(where);
+                    where.value = where.value.substring(0, start + 1) + where.value.substring(end);
+                    where.selectionStart = start + 1;
+                    where.selectionEnd = start + 2;
+
+                    return LEFT;
+                }
+
+                parenthesisStack.pop();
+            }
+        }
+
+        // -- if line afterwards contains parenthesis
+        // TODO: HERE
     }
 
     // console.log(repeats, "d", mRepeats, mKey);
@@ -383,7 +418,7 @@ function processChange(where, repeats, vim, mRepeats, mKey) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][Ww]|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][()Ww]|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
