@@ -169,8 +169,8 @@ function newLineAfter(where, vim, dr) {
     }
 
     where.value = content;
-    setCursorPosition(where, rows+1, 0);
-    setMode(vim, MODE_INSERT)
+    setCursorPosition(where, rows + 1, 0);
+    setMode(vim, MODE_INSERT);
 }
 
 function insertAtCursor(where, value) {
@@ -192,28 +192,24 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (mKey === "k") {
-        processBuffer(
-            `${repeats * mRepeats}${mKey}${repeats * mRepeats + 1}dd`,
-            where,
-            vim
-        );
+        processBuffer(`${repeats * mRepeats}${mKey}${repeats * mRepeats + 1}dd`, where, vim);
         return RIGHT;
     }
 
     if (mKey === "0") {
         const [_, cols] = getCursorPosition(where);
-        processBuffer(`0${cols-1}x`, where, vim);
+        processBuffer(`0${cols - 1}x`, where, vim);
         return LEFT;
     }
 
     if (mKey === "^") {
         const [rows, cols] = getCursorPosition(where);
-        const indentation = where.value.split(/\n/g)[rows-1].match(/^[ \t]+/)[0].length;
+        const indentation = where.value.split(/\n/g)[rows - 1].match(/^[ \t]+/)[0].length;
         if (cols > indentation) {
-            processBuffer(`^${cols-indentation}x`, where, vim);
+            processBuffer(`^${cols - indentation}x`, where, vim);
             return LEFT;
         } else {
-            processBuffer(`^${indentation-cols}dh`, where, vim);
+            processBuffer(`^${indentation - cols}dh`, where, vim);
             return RIGHT;
         }
     }
@@ -230,7 +226,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
     if (mKey === "$") {
         const [rows, cols] = getCursorPosition(where);
-        const charCount = where.value.split(/\n/g)[rows-1].length;
+        const charCount = where.value.split(/\n/g)[rows - 1].length;
         processBuffer(`${charCount - cols}x`, where, vim);
         return RIGHT;
     }
@@ -244,14 +240,13 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const [rows] = getCursorPosition(where);
         const lineCount = where.value.split(/\n/g).length;
         processBuffer(`${lineCount - rows + 1}dd0`, where, vim);
-        return RIGHT
+        return RIGHT;
     }
 
     if (mKey === "w" || mKey === "W" || mKey === "e" || mKey === "E") {
-        const isEnd = mKey.toLowerCase() === "e"
+        const isEnd = mKey.toLowerCase() === "e";
         const isWORD = mKey.toUpperCase() === mKey;
-        const wordPosition =
-          getWordPosition(where, mRepeats, isWORD, isEnd) + (isEnd ? 1 : 0);
+        const wordPosition = getWordPosition(where, mRepeats, isWORD, isEnd) + (isEnd ? 1 : 0);
 
         const left = where.value.substring(0, where.selectionStart);
         const content = left + where.value.substring(wordPosition);
@@ -260,26 +255,42 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         where.selectionStart = left.length;
         where.selectionEnd = left.length + 1;
 
-        return RIGHT;
+        return LEFT;
     }
 
-    // console.log(repeats, "d", mRepeats, mKey);
+    if (mKey === "iw") {
+        processBuffer("wbce", where, vim);
+    }
+
+    if (mKey === "iW") {
+        processBuffer("WBcE", where, vim);
+    }
+
+    if (mKey === "aw") {
+        processBuffer("wbcw", where, vim);
+    }
+
+    if (mKey === "aW") {
+        processBuffer("WBcW", where, vim);
+    }
+
+    console.log(repeats, "d", mRepeats, mKey);
 }
 
 function replaceCharacter(where, repeats, args) {
     const [rows, cols] = getCursorPosition(where);
     let lines = where.value.split(/\n/g);
 
-    const line = lines[rows-1];
+    const line = lines[rows - 1];
     if (cols + repeats > line.length) {
         return;
     }
 
     const newLine = line.substring(0, cols) + args.repeat(repeats) + line.substring(cols + repeats);
-    lines[rows-1] = newLine;
+    lines[rows - 1] = newLine;
 
     let previousLength = 0;
-    for (let i = 0; i < rows-1; i++) {
+    for (let i = 0; i < rows - 1; i++) {
         previousLength += lines[i].length + 1;
     }
     previousLength += cols + repeats - 1;
@@ -290,7 +301,8 @@ function replaceCharacter(where, repeats, args) {
     where.selectionEnd = previousLength + 1;
 }
 
-const Word_RE = /([^ \n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+|[\n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+)/g;
+const Word_RE =
+    /([^ \n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+|[\n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+)/g;
 const WORD_RE = /[^ \n\t]+/g;
 
 function getWordPosition(where, repeats, isWORD, toEnd) {
@@ -319,8 +331,13 @@ function moveWord(where, repeats, isWORD, toEnd) {
     refreshCursorPosition(where);
 
     if (previousSelectionStart === where.selectionStart) {
-        where.selectionStart++;
-        where.selectionEnd++;
+        if (repeats > 0) {
+            where.selectionStart++;
+            where.selectionEnd++;
+        } else {
+            where.selectionStart--;
+            where.selectionEnd--;
+        }
         return moveWord(where, repeats, isWORD, toEnd);
     }
 }
@@ -329,7 +346,7 @@ function changeCaps(where, repeats) {
     const [rows, cols] = getCursorPosition(where);
 
     const lines = where.value.split(/\n/g);
-    const previousLines = lines.splice(0, rows-1);
+    const previousLines = lines.splice(0, rows - 1);
     const nextLines = lines.splice(1);
     const currentLine = lines[0];
 
@@ -366,7 +383,7 @@ function processChange(where, repeats, vim, mRepeats, mKey) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[\$\^0DGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|[~\$\^A-EGIOSWa-ehi-loruw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][Ww]|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -387,7 +404,11 @@ const normalCommands = [
     },
     {
         key: "b",
-        action: (w, r) => moveWord(w, -r),
+        action: (w, r) => moveWord(w, -r + 1),
+    },
+    {
+        key: "B",
+        action: (w, r) => moveWord(w, -r + 1, true),
     },
     {
         key: "h",
@@ -507,8 +528,7 @@ const normalCommands = [
 
 function processBuffer(buffer, where, vim) {
     const originalBuffer = buffer;
-    const [command, repeat, _a, key, zero, arg, mr, mk] =
-        buffer.match(COMMAND_RE) || [];
+    const [command, repeat, _a, key, zero, arg, mr, mk] = buffer.match(COMMAND_RE) || [];
     const repeats = parseInt(repeat) || 1;
     const args = arg === undefined ? "" : arg;
     const mRepeat = mr === undefined ? "" : mr;
@@ -543,7 +563,7 @@ function processBuffer(buffer, where, vim) {
         const extraLength = args.length + mRepeat.length + mKey.length;
 
         if (normalCommand.requireArgs) {
-            if (mKey.length > 0 || key == "r" && args.length > 0) {
+            if (mKey.length > 0 || (key == "r" && args.length > 0)) {
                 buffer = buffer.substring(command.length);
                 run = true;
                 return normalCommand.action(where, repeats, vim, args, mRepeats, mKey);
