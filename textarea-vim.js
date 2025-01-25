@@ -1,13 +1,14 @@
 const MODE_NORMAL = "NORMAL";
 const MODE_INSERT = "INSERT";
 const MODE_VISUAL = "VISUAL";
+const MODE_VISUAL_LINE = "VISUAL LINE";
 
 function getSelectionPosition(where, vim) {
     if (vim.mode === MODE_NORMAL || vim.mode === MODE_INSERT) {
         return where.selectionStart;
     }
 
-    if (vim.mode === MODE_VISUAL) {
+    if (vim.mode === MODE_VISUAL || vim.mode === MODE_VISUAL_LINE) {
         return visualStart === where.selectionStart ? where.selectionEnd - 1 : where.selectionStart;
     }
 }
@@ -47,10 +48,18 @@ function setCursorPosition(where, rows, cols, vim, force, isInsertMode) {
     // set position
     if (vim.mode === MODE_NORMAL || vim.mode === MODE_INSERT) {
         where.selectionStart = previousLength;
-        where.selectionEnd = previousLength + (isInsertMode ? 0 : 1);
+        where.selectionEnd = previousLength + (vim.mode === MODE_INSERT ? 0 : 1);
     } else if (vim.mode === MODE_VISUAL) {
         where.selectionStart = Math.min(visualStart, previousLength);
         where.selectionEnd = Math.max(visualStart, previousLength) + 1;
+    } else if (vim.mode === MODE_VISUAL_LINE) {
+        const left = Math.min(visualStart, previousLength);
+        const right = Math.max(visualStart, previousLength);
+        const lineStart = where.value.substring(0, left).lastIndexOf("\n") + 1;
+        const lineEnd = where.value.substring(right).indexOf("\n") + right + 1;
+
+        where.selectionStart = lineStart;
+        where.selectionEnd = lineEnd;
     }
 }
 
@@ -85,6 +94,27 @@ function setMode(vim, mode) {
 
     if (mode === MODE_VISUAL) {
         visualStart = vim.target.selectionStart;
+    }
+
+    if (mode === MODE_VISUAL_LINE) {
+        const [rows] = getCursorPosition(vim.target, vim);
+        const lines = vim.target.value.split(/\n/g);
+        const lineStart =
+            vim.target.value.substring(0, vim.target.selectionStart).lastIndexOf("\n") + 1;
+        const lineEnd =
+            vim.target.value.substring(vim.target.selectionEnd).indexOf("\n") +
+            vim.target.selectionEnd;
+
+        let selectionStart = lineStart;
+        let selectionEnd = lineEnd;
+        if (lines[rows - 1].length === 0) {
+            selectionEnd -= lines[rows].length;
+        }
+
+        vim.target.selectionStart = selectionStart;
+        vim.target.selectionEnd = selectionEnd;
+
+        visualStart = selectionStart;
     }
 
     if (mode === MODE_INSERT) {
@@ -204,7 +234,7 @@ function insertAtCursor(where, value, vim) {
 const LEFT = "LEFT";
 const RIGHT = "RIGHT";
 function processDelete(where, repeats, vim, mRepeats, mKey) {
-    if (vim.mode === MODE_VISUAL) {
+    if (vim.mode === MODE_VISUAL || vim.mode === MODE_VISUAL_LINE) {
         const selectionStart = where.selectionStart;
         const selectionEnd = where.selectionEnd;
         const content =
@@ -605,7 +635,7 @@ function moveFind(where, repeats, vim, args, isT) {
 
 function changeIndent(where, repeats, vim) {
     const lines = where.value.split(/\n/g);
-    const [rows, cols] = getCursorPosition(where, vim);
+    const [rows] = getCursorPosition(where, vim);
     const previousLines = lines.splice(0, rows - 1);
     const nextLines = lines.splice(repeats * (repeats < 0 ? -1 : 1));
 
@@ -637,7 +667,7 @@ function changeIndent(where, repeats, vim) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSWa-fhi-lor-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSV-Wa-fhi-lor-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -818,6 +848,10 @@ const normalCommands = [
         key: "v",
         action: (w, r, v) => setMode(v, MODE_VISUAL),
     },
+    {
+        key: "V",
+        action: (w, r, v) => setMode(v, MODE_VISUAL_LINE),
+    },
 ];
 
 function processBuffer(buffer, where, vim, recordStack) {
@@ -867,6 +901,7 @@ function processBuffer(buffer, where, vim, recordStack) {
         if (normalCommand.requireArgs || normalCommand.requireArg) {
             if (
                 vim.mode === MODE_VISUAL ||
+                vim.mode === MODE_VISUAL_LINE ||
                 mKey.length > 0 ||
                 (normalCommand.requireArg && args.length > 0)
             ) {
@@ -904,7 +939,7 @@ function down(v, e) {
         v.buffer = "";
         refreshCursorPosition(v.target, v, nowMode !== MODE_INSERT ? 0 : -1);
     } else if (e.key === "Backspace") {
-        if (v.mode === MODE_NORMAL || v.mode === MODE_VISUAL) {
+        if (v.mode !== MODE_INSERT) {
             e.preventDefault();
             v.buffer = "";
             moveCursor(v.target, 0, -1, v);
@@ -915,7 +950,7 @@ function down(v, e) {
             v.buffer = "";
             moveCursor(v.target, 1, 0, v);
         }
-    } else if ((v.mode === MODE_NORMAL || v.mode === MODE_VISUAL) && e.key.length <= 1) {
+    } else if (v.mode !== MODE_INSERT && e.key.length <= 1) {
         e.preventDefault();
         if (e.ctrlKey) {
             v.buffer += `<C-${e.key}>`;
