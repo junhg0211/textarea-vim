@@ -113,8 +113,6 @@ function pushStack(where) {
     const [rows, cols] = getCursorPosition(where);
     stack.push([where.value, rows, cols]);
     redoStack.length = 0;
-
-    console.log("pushStack", stack);
 }
 
 function popStack(where, repeats) {
@@ -132,8 +130,6 @@ function popStack(where, repeats) {
         where.value = value;
         setCursorPosition(where, rows, cols);
     }
-
-    console.log("popStack", stack);
 }
 
 const backStack = [];
@@ -775,9 +771,11 @@ function processBuffer(buffer, where, vim, recordStack) {
     const mRepeats = parseInt(mRepeat) || 1;
     const mKey = mk === undefined ? "" : mk;
 
+    /*
     if (command !== undefined) {
         console.log([command, repeat, key, args, mRepeat, mKey]);
     }
+    */
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
