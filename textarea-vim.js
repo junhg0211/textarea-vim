@@ -666,8 +666,53 @@ function changeIndent(where, repeats, vim) {
     where.selectionEnd = selectionPos + 1;
 }
 
+function joinLines(where, repeats, vim) {
+    if (vim.mode === MODE_VISUAL_LINE) {
+        const lines = where.value.split(/\n/g);
+
+        const selectionStartLine = (
+            vim.target.value.substring(0, vim.target.selectionStart).match(/\n/g) || []
+        ).length;
+        const selectionEndLine =
+            (vim.target.value.substring(0, vim.target.selectionEnd).match(/\n/g) || []).length - 1;
+
+        const previousLines = lines.splice(0, selectionStartLine);
+        const nextLines = lines.splice(selectionEndLine - selectionStartLine + 1);
+
+        for (let i = 1; i < lines.length; i++) {
+            lines[i] = lines[i].trim();
+        }
+
+        const middleLines = lines.join(" ").trimEnd();
+        const cols = middleLines.length - lines[lines.length - 1].trim().length - 1;
+
+        const newLines = [...previousLines, middleLines, ...nextLines];
+        const newContent = newLines.join("\n");
+
+        where.value = newContent;
+        setMode(vim, MODE_NORMAL);
+        setCursorPosition(where, selectionEndLine - lines.length + 2, cols, vim);
+        return;
+    }
+
+    const [rows, cols] = getCursorPosition(where, vim);
+    const lines = where.value.split(/\n/g);
+    const previousLines = lines.splice(0, rows - 1);
+    const nextLines = lines.splice(repeats + 1);
+
+    for (let i = 1; i < lines.length; i++) {
+        lines[i] = lines[i].trim();
+    }
+
+    const newLines = [...previousLines, lines.join(" ").trimEnd(), ...nextLines];
+    const newContent = newLines.join("\n");
+    
+    where.value = newContent;
+    setCursorPosition(where, rows, cols, vim);
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSV-Wa-fhi-lor-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGI-JOSV-Wa-fhi-lor-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -821,6 +866,10 @@ const normalCommands = [
     {
         key: "x",
         action: (w, r, v) => removeCharacter(w, r, v),
+    },
+    {
+        key: "J",
+        action: (w, r, v) => joinLines(w, r, v),
     },
     {
         key: "dd",
