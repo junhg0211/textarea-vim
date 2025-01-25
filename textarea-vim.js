@@ -238,11 +238,10 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const indentation = where.value.split(/\n/g)[rows - 1].match(/^[ \t]+/)[0].length;
         if (cols > indentation) {
             processBuffer(`^${cols - indentation}x`, where, vim);
-            return LEFT;
         } else {
             processBuffer(`^${indentation - cols}dh`, where, vim);
-            return RIGHT;
         }
+        return LEFT;
     }
 
     if (mKey === "h") {
@@ -252,7 +251,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
     if (mKey === "l") {
         processBuffer(`${repeats * mRepeats}x`, where, vim);
-        return RIGHT;
+        return LEFT;
     }
 
     if (mKey === "$") {
@@ -783,7 +782,7 @@ const normalCommands = [
     },
     {
         key: "s",
-        alias: "xi",
+        alias: "cl",
     },
     {
         key: "S",
