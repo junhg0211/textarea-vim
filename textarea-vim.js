@@ -673,8 +673,10 @@ function joinLines(where, repeats, vim) {
         const selectionStartLine = (
             vim.target.value.substring(0, vim.target.selectionStart).match(/\n/g) || []
         ).length;
-        const selectionEndLine =
-            (vim.target.value.substring(0, vim.target.selectionEnd).match(/\n/g) || []).length - 1;
+        const selectionEndLine = Math.max(
+            selectionStartLine + 1,
+            (vim.target.value.substring(0, vim.target.selectionEnd).match(/\n/g) || []).length - 1
+        );
 
         const previousLines = lines.splice(0, selectionStartLine);
         const nextLines = lines.splice(selectionEndLine - selectionStartLine + 1);
