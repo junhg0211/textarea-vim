@@ -12,8 +12,8 @@ function getCursorPosition(where) {
 }
 
 function setCursorPosition(where, rows, cols, force, isInsertMode) {
-    force = force !== undefined;
-    isInsertMode = isInsertMode !== undefined;
+    force = force === undefined ? undefined : true;
+    isInsertMode = isInsertMode === undefined ? undefined : true;
 
     const lines = where.value.split(/\n/g);
 
@@ -118,8 +118,6 @@ function pushStack(where) {
 }
 
 function popStack(where, repeats) {
-    console.log("popStack", stack);
-
     repeats = repeats === undefined ? 1 : repeats;
 
     for (let i = 0; i < repeats; i++) {
@@ -134,6 +132,8 @@ function popStack(where, repeats) {
         where.value = value;
         setCursorPosition(where, rows, cols);
     }
+
+    console.log("popStack", stack);
 }
 
 const backStack = [];
@@ -527,7 +527,7 @@ function processChange(where, repeats, vim, mRepeats, mKey) {
 }
 
 function moveFind(where, repeats, args, isT) {
-    isT = isT !== undefined;
+    isT = isT === undefined ? undefined : true;
 
     const [rows, cols] = getCursorPosition(where);
     const lines = where.value.split(/\n/g);
@@ -754,10 +754,6 @@ const normalCommands = [
         alias: "d$",
     },
     {
-        key: "dd",
-        action: (w, r) => removeLine(w, r),
-    },
-    {
         key: "u",
         action: (w, r) => popStack(w, r),
         ignoreStack: true,
@@ -768,8 +764,8 @@ const normalCommands = [
     },
 ];
 
-function processBuffer(buffer, where, vim, ignoreStack) {
-    ignoreStack = ignoreStack !== undefined;
+function processBuffer(buffer, where, vim, recordStack) {
+    recordStack = recordStack === undefined ? undefined : true;
 
     const originalBuffer = buffer;
     const [command, repeat, _a, key, zero, arg, mr, mk] = buffer.match(COMMAND_RE) || [];
@@ -779,11 +775,9 @@ function processBuffer(buffer, where, vim, ignoreStack) {
     const mRepeats = parseInt(mRepeat) || 1;
     const mKey = mk === undefined ? "" : mk;
 
-    /*
     if (command !== undefined) {
         console.log([command, repeat, key, args, mRepeat, mKey]);
     }
-    */
 
     if (zero !== undefined) {
         normalCommands.find((normalCommand) => normalCommand.key === "0").action(where, 1, vim);
@@ -795,6 +789,7 @@ function processBuffer(buffer, where, vim, ignoreStack) {
     }
 
     let run = false;
+    let pushed = false;
     normalCommands.forEach((normalCommand) => {
         if (normalCommand.key !== key) {
             return;
@@ -804,7 +799,12 @@ function processBuffer(buffer, where, vim, ignoreStack) {
             return;
         }
 
-        const extraLength = args.length + mRepeat.length + mKey.length;
+        if (!pushed && recordStack && !normalCommand.ignoreStack) {
+            pushStack(where);
+            pushed = true;
+        }
+
+        const extraLength = args.length;
 
         if (normalCommand.requireArgs || normalCommand.requireArg) {
             if (mKey.length > 0 || (normalCommand.requireArg && args.length > 0)) {
@@ -817,13 +817,9 @@ function processBuffer(buffer, where, vim, ignoreStack) {
                 `${repeats === 1 ? "" : repeats}${normalCommand.alias}` +
                 `${buffer.substring(command.length - extraLength)}`;
             run = true;
-            return processBuffer(buffer, where, vim);
         } else {
             buffer = buffer.substring(command.length - extraLength);
             run = true;
-            if (!ignoreStack && !normalCommand.ignoreStack) {
-                pushStack(where);
-            }
             return normalCommand.action(where, repeats, vim);
         }
     });
@@ -860,7 +856,7 @@ function down(v, e) {
         } else {
             v.buffer += e.key;
         }
-        v.buffer = processBuffer(v.buffer, v.target, v);
+        v.buffer = processBuffer(v.buffer, v.target, v, true);
     } else if (v.mode === MODE_INSERT) {
         if (e.key === "Tab") {
             e.preventDefault();
