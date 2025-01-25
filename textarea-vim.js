@@ -787,7 +787,7 @@ async function paste(where, repeats, vim, previous) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGI-JO-PSV-Wa-fhi-lo-pr-y]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|yy|>>|<<|[~\$\^A-EGI-JO-PSV-Wa-fhi-lo-pr-y]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -975,6 +975,10 @@ const normalCommands = [
             popStack(w, r, v);
         },
         requireArgs: true,
+    },
+    {
+        key: "yy",
+        alias: "ddu",
     },
     {
         key: "p",
