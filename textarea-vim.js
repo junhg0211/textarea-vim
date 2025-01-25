@@ -820,6 +820,10 @@ function processBuffer(buffer, where, vim, recordStack) {
             run = true;
             return normalCommand.action(where, repeats, vim);
         }
+
+        if (!run) {
+            popStack(where);
+        }
     });
 
     if (buffer === originalBuffer) {
