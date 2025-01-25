@@ -488,8 +488,8 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
         const newContent = newLines.join("\n");
         where.value = newContent;
-        where.selectionStart = selectionStart;
-        where.selectionEnd = selectionStart + 1;
+        where.selectionStart = selectionStart - (isIn ? 0 : 1);
+        where.selectionEnd = selectionStart - (isIn ? 0 : 1) + 1;
 
         return LEFT;
     }
