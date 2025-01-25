@@ -1,8 +1,20 @@
 const MODE_NORMAL = "NORMAL";
 const MODE_INSERT = "INSERT";
+const MODE_VISUAL = "VISUAL";
 
-function getCursorPosition(where) {
-    const selectionPos = where.selectionStart;
+function getSelectionPosition(where, vim) {
+    if (vim.mode === MODE_NORMAL || vim.mode === MODE_INSERT) {
+        return where.selectionStart;
+    }
+
+    if (vim.mode === MODE_VISUAL) {
+        console.log(visualStart, where.selectionStart, where.selectionEnd);
+        return visualStart === where.selectionStart ? where.selectionEnd - 1 : where.selectionStart;
+    }
+}
+
+function getCursorPosition(where, vim) {
+    const selectionPos = getSelectionPosition(where, vim);
     const previousLines = where.value.substring(0, selectionPos).split(/\n/g);
 
     const rows = previousLines.length;
@@ -11,7 +23,7 @@ function getCursorPosition(where) {
     return [rows, cols];
 }
 
-function setCursorPosition(where, rows, cols, force, isInsertMode) {
+function setCursorPosition(where, rows, cols, vim, force, isInsertMode) {
     force = force === undefined ? undefined : true;
     isInsertMode = isInsertMode === undefined ? undefined : true;
 
@@ -34,45 +46,58 @@ function setCursorPosition(where, rows, cols, force, isInsertMode) {
     previousLength += cols;
 
     // set position
-    where.selectionStart = previousLength;
-    where.selectionEnd = previousLength + (isInsertMode ? 0 : 1);
+    if (vim.mode === MODE_NORMAL || vim.mode === MODE_INSERT) {
+        where.selectionStart = previousLength;
+        where.selectionEnd = previousLength + (isInsertMode ? 0 : 1);
+    } else if (vim.mode === MODE_VISUAL) {
+        where.selectionStart = Math.min(visualStart, previousLength);
+        where.selectionEnd = Math.max(visualStart, previousLength) + 1;
+    }
 }
 
-function refreshCursorPosition(where, dc) {
+function refreshCursorPosition(where, vim, dc) {
     dc = dc === undefined ? 0 : dc;
-    const [rows, cols] = getCursorPosition(where);
-    return setCursorPosition(where, rows, cols + dc);
+    const [rows, cols] = getCursorPosition(where, vim);
+    return setCursorPosition(where, rows, cols + dc, vim);
 }
 
-function moveCursor(where, dr, dc, force, isInsertMode) {
+function moveCursor(where, dr, dc, vim, force, isInsertMode) {
     force = force === undefined ? undefined : true;
     isInsertMode = isInsertMode === undefined ? undefined : true;
-    const [rows, cols] = getCursorPosition(where);
-    return setCursorPosition(where, rows + dr, cols + dc, force, isInsertMode);
+    const [rows, cols] = getCursorPosition(where, vim);
+    return setCursorPosition(where, rows + dr, cols + dc, vim, force, isInsertMode);
 }
 
-function homeCursor(where) {
-    const [rows] = getCursorPosition(where);
+function homeCursor(where, vim) {
+    const [rows] = getCursorPosition(where, vim);
     const indentation = where.value.split(/\n/g)[rows - 1].match(/^[ \t]*/)[0].length;
-    return setCursorPosition(where, rows, indentation);
+    return setCursorPosition(where, rows, indentation, vim);
 }
 
 function lineifyCursor(where) {
     where.selectionEnd = where.selectionStart;
 }
 
+let visualStart;
 function setMode(vim, mode) {
     if (vim.mode === mode) {
         return;
     }
 
+    if (mode === MODE_VISUAL) {
+        visualStart = vim.target.selectionStart;
+    }
+
+    if (mode === MODE_INSERT) {
+        lineifyCursor(vim.target);
+    }
+
     vim.mode = mode;
-    lineifyCursor(vim.target);
     vim.syncronizeLabels();
 }
 
-function removeCharacter(where, repeats) {
-    const selectionPos = where.selectionStart;
+function removeCharacter(where, repeats, vim) {
+    const selectionPos = getSelectionPosition(where, vim);
 
     let newValue = where.value;
     let previousValue;
@@ -89,33 +114,32 @@ function removeCharacter(where, repeats) {
     where.value = newValue;
     where.selectionStart = selectionPos;
     where.selectionEnd = selectionPos + 1;
-    refreshCursorPosition(where);
+    refreshCursorPosition(where, vim);
 }
 
-function removeLine(where, repeats) {
+function removeLine(where, repeats, vim) {
     const lines = where.value.split(/\n/g);
-    const [rows, cols] = getCursorPosition(where);
+    const [rows, cols] = getCursorPosition(where, vim);
     lines.splice(rows - 1, repeats);
 
     where.value = lines.join("\n");
 
-    setCursorPosition(where, rows, cols);
+    setCursorPosition(where, rows, cols, vim);
 }
 
 const stack = [];
 const MAX_STACK_SIZE = 80;
 
-function pushStack(where) {
+function pushStack(where, vim) {
     while (stack.length >= MAX_STACK_SIZE) {
         stack.splice(0, 1);
     }
 
-    const [rows, cols] = getCursorPosition(where);
+    const [rows, cols] = getCursorPosition(where, vim);
     stack.push([where.value, rows, cols]);
-    redoStack.length = 0;
 }
 
-function popStack(where, repeats) {
+function popStack(where, repeats, vim) {
     repeats = repeats === undefined ? 1 : repeats;
 
     for (let i = 0; i < repeats; i++) {
@@ -123,17 +147,17 @@ function popStack(where, repeats) {
             break;
         }
 
-        const [oRows, oCols] = getCursorPosition(where);
+        const [oRows, oCols] = getCursorPosition(where, vim);
         backStack.push([where.value, oRows, oCols]);
 
         const [value, rows, cols] = stack.pop();
         where.value = value;
-        setCursorPosition(where, rows, cols);
+        setCursorPosition(where, rows, cols, vim);
     }
 }
 
 const backStack = [];
-function redoStack(where, repeats) {
+function redoStack(where, repeats, vim) {
     for (let i = 0; i < repeats; i++) {
         if (backStack.length === 0) {
             break;
@@ -141,14 +165,14 @@ function redoStack(where, repeats) {
 
         const [value, rows, cols] = backStack.pop();
         where.value = value;
-        setCursorPosition(where, rows, cols);
+        setCursorPosition(where, rows, cols, vim);
     }
 }
 
 function newLineAfter(where, vim, dr) {
     dr = dr === undefined ? 0 : dr;
 
-    const [rows_] = getCursorPosition(where);
+    const [rows_] = getCursorPosition(where, vim);
     const lines = where.value.split(/\n/g);
     const rows = rows_ + dr;
 
@@ -166,11 +190,11 @@ function newLineAfter(where, vim, dr) {
 
     where.value = content;
     setMode(vim, MODE_INSERT);
-    setCursorPosition(where, rows + 1, 0, undefined, true);
+    setCursorPosition(where, rows + 1, 0, vim, undefined, true);
 }
 
-function insertAtCursor(where, value) {
-    const selectionPos = where.selectionStart;
+function insertAtCursor(where, value, vim) {
+    const selectionPos = getSelectionPosition(where, vim)
 
     where.value =
         where.value.substring(0, selectionPos) + value + where.value.substring(selectionPos);
@@ -182,7 +206,7 @@ const LEFT = "LEFT";
 const RIGHT = "RIGHT";
 function processDelete(where, repeats, vim, mRepeats, mKey) {
     if (mKey === "gg") {
-        const [rows] = getCursorPosition(where);
+        const [rows] = getCursorPosition(where, vim);
         processBuffer(`gg${rows}dd`, where, vim);
         return LEFT;
     }
@@ -193,13 +217,13 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (mKey === "0") {
-        const [_, cols] = getCursorPosition(where);
+        const [_, cols] = getCursorPosition(where, vim);
         processBuffer(`0${cols - 1}x`, where, vim);
         return LEFT;
     }
 
     if (mKey === "^") {
-        const [rows, cols] = getCursorPosition(where);
+        const [rows, cols] = getCursorPosition(where, vim);
         const indentation = where.value.split(/\n/g)[rows - 1].match(/^[ \t]+/)[0].length;
         if (cols > indentation) {
             processBuffer(`^${cols - indentation}x`, where, vim);
@@ -221,7 +245,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (mKey === "$") {
-        const [rows, cols] = getCursorPosition(where);
+        const [rows, cols] = getCursorPosition(where, vim);
         const charCount = where.value.split(/\n/g)[rows - 1].length;
         processBuffer(`${charCount - cols}x`, where, vim);
         return RIGHT;
@@ -233,7 +257,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (mKey === "G") {
-        const [rows] = getCursorPosition(where);
+        const [rows] = getCursorPosition(where, vim);
         const lineCount = where.value.split(/\n/g).length;
         processBuffer(`${lineCount - rows + 1}dd0`, where, vim);
         return RIGHT;
@@ -242,7 +266,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     if (mKey === "w" || mKey === "W" || mKey === "e" || mKey === "E") {
         const isEnd = mKey.toLowerCase() === "e";
         const isWORD = mKey.toUpperCase() === mKey;
-        const wordPosition = getWordPosition(where, mRepeats, isWORD, isEnd) + (isEnd ? 1 : 0);
+        const wordPosition = getWordPosition(where, mRepeats, vim, isWORD, isEnd) + (isEnd ? 1 : 0);
 
         const left = where.value.substring(0, where.selectionStart);
         const content = left + where.value.substring(wordPosition);
@@ -257,7 +281,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const isF = mKey[0] === "f";
         const target = mKey[1];
 
-        const [rows, cols] = getCursorPosition(where);
+        const [rows, cols] = getCursorPosition(where, vim);
         const lines = where.value.split(/\n/g);
         const line = lines[rows - 1];
 
@@ -285,7 +309,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const newLines = [...previousLines, newLine, ...nextLines];
         const newContent = newLines.join("\n");
 
-        const selectionPos = where.selectionStart;
+        const selectionPos = getSelectionPosition(where, vim);
         where.value = newContent;
         where.selectionStart = selectionPos;
         where.selectionEnd = selectionPos + 1;
@@ -375,7 +399,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
         // -- if line afterwards contains parenthesis
         const lines = where.value.split(/\n/g);
-        const [rows, cols] = getCursorPosition(where);
+        const [rows, cols] = getCursorPosition(where, vim);
         const line = lines[rows - 1];
 
         const left = line.substring(0, cols);
@@ -420,7 +444,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 }
 
 function replaceCharacter(where, repeats, args) {
-    const [rows, cols] = getCursorPosition(where);
+    const [rows, cols] = getCursorPosition(where, vim);
     let lines = where.value.split(/\n/g);
 
     const line = lines[rows - 1];
@@ -446,9 +470,9 @@ const Word_RE =
     /([^ \n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+|[\n\t\r`~!@#$%^&*()+\-=,.<>/?;:'"[{\]}]+)/g;
 const WORD_RE = /[^ \n\t]+/g;
 
-function getWordPosition(where, repeats, isWORD, toEnd) {
+function getWordPosition(where, repeats, vim, isWORD, toEnd) {
     const words = [...where.value.matchAll(isWORD ? WORD_RE : Word_RE)];
-    const selectionPos = where.selectionStart;
+    const selectionPos = getSelectionPosition(where, vim);
 
     let index;
     for (index = 0; index < words.length; index++) {
@@ -463,15 +487,16 @@ function getWordPosition(where, repeats, isWORD, toEnd) {
     return words[index + repeats].index + (toEnd ? words[index + repeats][0].length - 1 : 0);
 }
 
-function moveWord(where, repeats, isWORD, toEnd) {
+function moveWord(where, repeats, vim, isWORD, toEnd) {
     const previousSelectionStart = where.selectionStart;
+    const previousSelectionPos = getSelectionPosition(where, vim);
 
-    const position = getWordPosition(where, repeats, isWORD, toEnd);
+    const position = getWordPosition(where, repeats, vim, isWORD, toEnd);
     where.selectionStart = position;
     where.selectionEnd = position + 1;
-    refreshCursorPosition(where);
+    refreshCursorPosition(where, vim);
 
-    if (previousSelectionStart === where.selectionStart) {
+    if (mode === MODE_NORMAL && previousSelectionStart === where.selectionStart) {
         if (repeats > 0) {
             where.selectionStart++;
             where.selectionEnd++;
@@ -479,12 +504,29 @@ function moveWord(where, repeats, isWORD, toEnd) {
             where.selectionStart--;
             where.selectionEnd--;
         }
-        return moveWord(where, repeats, isWORD, toEnd);
+        return moveWord(where, repeats, vim, isWORD, toEnd);
+    }
+
+    if (mode === MODE_VISUAL && previousSelectionPos === getSelectionPosition(where, vim)) {
+        if (repeats > 0) {
+            if (visualStart === where.selectionStart) {
+                where.selectionEnd++;
+            } else {
+                where.selectionStart++;
+            }
+        } else {
+            if (visualStart === where.selectionStart) {
+                where.selectionEnd--;
+            } else {
+                where.selectionStart--;
+            }
+        }
+        return moveWord(where, repeats, vim, isWORD, toEnd);
     }
 }
 
-function changeCaps(where, repeats) {
-    const [rows, cols] = getCursorPosition(where);
+function changeCaps(where, repeats, vim) {
+    const [rows, cols] = getCursorPosition(where, vim);
 
     const lines = where.value.split(/\n/g);
     const previousLines = lines.splice(0, rows - 1);
@@ -511,21 +553,21 @@ function changeCaps(where, repeats) {
 
     const newContent = [...previousLines, newLine, ...nextLines].join("\n");
     where.value = newContent;
-    setCursorPosition(where, rows, cols + repeats);
+    setCursorPosition(where, rows, cols + repeats, vim);
 }
 
 function processChange(where, repeats, vim, mRepeats, mKey) {
     const direction = processDelete(where, repeats, vim, mRepeats, mKey);
     setMode(vim, MODE_INSERT);
     if (direction === RIGHT) {
-        moveCursor(where, 0, 1, true, true);
+        moveCursor(where, 0, 1, vim, true, true);
     }
 }
 
-function moveFind(where, repeats, args, isT) {
+function moveFind(where, repeats, vim, args, isT) {
     isT = isT === undefined ? undefined : true;
 
-    const [rows, cols] = getCursorPosition(where);
+    const [rows, cols] = getCursorPosition(where, vim);
     const lines = where.value.split(/\n/g);
     const line = lines[rows - 1];
     const right = line.substring(cols);
@@ -548,12 +590,12 @@ function moveFind(where, repeats, args, isT) {
         return;
     }
 
-    moveCursor(where, 0, i - (isT ? 1 : 0));
+    moveCursor(where, 0, i - (isT ? 1 : 0), vim);
 }
 
-function changeIndent(where, repeats) {
+function changeIndent(where, repeats, vim) {
     const lines = where.value.split(/\n/g);
-    const [rows, cols] = getCursorPosition(where);
+    const [rows, cols] = getCursorPosition(where, vim);
     const previousLines = lines.splice(0, rows - 1);
     const nextLines = lines.splice(repeats * (repeats < 0 ? -1 : 1));
 
@@ -578,101 +620,101 @@ function changeIndent(where, repeats) {
     const newLines = [...previousLines, ...newlines, ...nextLines];
     const newContent = newLines.join("\n");
 
-    const selectionPos = where.selectionStart;
+    const selectionPos = getSelectionPosition(where, vim);
     where.value = newContent;
     where.selectionStart = selectionPos;
     where.selectionEnd = selectionPos + 1;
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSWa-fhi-lort-uw-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSWa-fhi-lort-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
         key: "gg",
-        action: (w, r) => setCursorPosition(w, r, 0),
+        action: (w, r, v) => setCursorPosition(w, r, 0, v),
         ignoreStack: true,
     },
     {
         key: "k",
-        action: (w, r) => moveCursor(w, -r, 0),
+        action: (w, r, v) => moveCursor(w, -r, 0, v),
         ignoreStack: true,
     },
     {
         key: "0",
-        action: (w) => moveCursor(w, 0, -Infinity),
+        action: (w, r, v) => moveCursor(w, 0, -Infinity, v),
         ignoreStack: true,
     },
     {
         key: "^",
-        action: (w) => homeCursor(w),
+        action: (w, r, v) => homeCursor(w, v),
         ignoreStack: true,
     },
     {
         key: "b",
-        action: (w, r) => moveWord(w, -r + 1),
+        action: (w, r, v) => moveWord(w, -r, v),
         ignoreStack: true,
     },
     {
         key: "B",
-        action: (w, r) => moveWord(w, -r + 1, true),
+        action: (w, r, v) => moveWord(w, -r, v, true),
         ignoreStack: true,
     },
     {
         key: "h",
-        action: (w, r) => moveCursor(w, 0, -r),
+        action: (w, r, v) => moveCursor(w, 0, -r, v),
         ignoreStack: true,
     },
     {
         key: "l",
-        action: (w, r) => moveCursor(w, 0, r),
+        action: (w, r, v) => moveCursor(w, 0, r, v),
         ignoreStack: true,
     },
     {
         key: "w",
-        action: (w, r) => moveWord(w, r),
+        action: (w, r, v) => moveWord(w, r, v),
         ignoreStack: true,
     },
     {
         key: "e",
-        action: (w, r) => moveWord(w, r, false, true),
+        action: (w, r, v) => moveWord(w, r, v, false, true),
         ignoreStack: true,
     },
     {
         key: "W",
-        action: (w, r) => moveWord(w, r, true),
+        action: (w, r, v) => moveWord(w, r, v, true),
         ignoreStack: true,
     },
     {
         key: "E",
-        action: (w, r) => moveWord(w, r, true, true),
+        action: (w, r, v) => moveWord(w, r, v, true, true),
         ignoreStack: true,
     },
     {
         key: "t",
-        action: (w, r, v, a) => moveFind(w, r, a, true),
+        action: (w, r, v, a) => moveFind(w, r, v, a, true),
         requireArg: true,
         ignoreStack: true,
     },
     {
         key: "f",
-        action: (w, r, v, a) => moveFind(w, r, a),
+        action: (w, r, v, a) => moveFind(w, r, v, a),
         requireArg: true,
         ignoreStack: true,
     },
     {
         key: "$",
-        action: (w) => moveCursor(w, 0, Infinity),
+        action: (w, r, v) => moveCursor(w, 0, Infinity, v),
         ignoreStack: true,
     },
     {
         key: "j",
-        action: (w, r) => moveCursor(w, r, 0),
+        action: (w, r, v) => moveCursor(w, r, 0, v),
         ignoreStack: true,
     },
     {
         key: "G",
-        action: (w, r) => setCursorPosition(w, r === 1 ? Infinity : r, 0),
+        action: (w, r, v) => setCursorPosition(w, r === 1 ? Infinity : r, 0, v),
         ignoreStack: true,
     },
     {
@@ -691,15 +733,15 @@ const normalCommands = [
     },
     {
         key: "~",
-        action: (w, r) => changeCaps(w, r),
+        action: (w, r, v) => changeCaps(w, r, v),
     },
     {
         key: ">>",
-        action: (w, r) => changeIndent(w, r),
+        action: (w, r, v) => changeIndent(w, r, v),
     },
     {
         key: "<<",
-        action: (w, r) => changeIndent(w, -r),
+        action: (w, r, v) => changeIndent(w, -r, v),
     },
     {
         key: "i",
@@ -712,7 +754,7 @@ const normalCommands = [
     {
         key: "a",
         action: (w, r, v) => {
-            moveCursor(w, 0, 1, true);
+            moveCursor(w, 0, 1, v, true);
             setMode(v, MODE_INSERT);
         },
     },
@@ -734,11 +776,11 @@ const normalCommands = [
     },
     {
         key: "x",
-        action: (w, r) => removeCharacter(w, r),
+        action: (w, r, v) => removeCharacter(w, r, v),
     },
     {
         key: "dd",
-        action: (w, r) => removeLine(w, r),
+        action: (w, r, v) => removeLine(w, r, v),
     },
     {
         key: "d",
@@ -751,13 +793,17 @@ const normalCommands = [
     },
     {
         key: "u",
-        action: (w, r) => popStack(w, r),
+        action: (w, r, v) => popStack(w, r, v),
         ignoreStack: true,
     },
     {
         key: "<C-r>",
-        action: (w, r) => redoStack(w, r),
+        action: (w, r, v) => redoStack(w, r, v),
     },
+    {
+        key: "v",
+        action: (w, r, v) => setMode(v, MODE_VISUAL),
+    }
 ];
 
 function processBuffer(buffer, where, vim, recordStack) {
@@ -798,7 +844,7 @@ function processBuffer(buffer, where, vim, recordStack) {
         }
 
         if (!pushed && recordStack && !normalCommand.ignoreStack) {
-            pushStack(where);
+            pushStack(where, vim);
             pushed = true;
         }
 
@@ -822,7 +868,7 @@ function processBuffer(buffer, where, vim, recordStack) {
         }
 
         if (!run) {
-            popStack(where);
+            popStack(where, 1, vim);
         }
     });
 
@@ -838,20 +884,20 @@ function down(v, e) {
         const nowMode = v.mode;
         setMode(v, MODE_NORMAL);
         v.buffer = "";
-        refreshCursorPosition(v.target, nowMode === MODE_NORMAL ? 0 : -1);
+        refreshCursorPosition(v.target, v, nowMode !== MODE_INSERT ? 0 : -1);
     } else if (e.key === "Backspace") {
-        if (v.mode === MODE_NORMAL) {
+        if (v.mode === MODE_NORMAL || v.mode === MODE_VISUAL) {
             e.preventDefault();
             v.buffer = "";
-            moveCursor(v.target, 0, -1);
+            moveCursor(v.target, 0, -1, v);
         }
     } else if (e.key === "Enter") {
         if (v.mode === MODE_NORMAL) {
             e.preventDefault();
             v.buffer = "";
-            moveCursor(v.target, 1, 0);
+            moveCursor(v.target, 1, 0, v);
         }
-    } else if (v.mode === MODE_NORMAL && e.key.length <= 1) {
+    } else if ((v.mode === MODE_NORMAL || v.mode === MODE_VISUAL) && e.key.length <= 1) {
         e.preventDefault();
         if (e.ctrlKey) {
             v.buffer += `<C-${e.key}>`;
@@ -862,9 +908,10 @@ function down(v, e) {
     } else if (v.mode === MODE_INSERT) {
         if (e.key === "Tab") {
             e.preventDefault();
-            insertAtCursor(v.target, "    ");
+            insertAtCursor(v.target, "    ", v);
         }
     }
+
 
     v.syncronizeLabels();
 }
@@ -886,7 +933,7 @@ class Vim {
         target.addEventListener("keydown", (e) => down(this, e));
         target.addEventListener("keyup", (e) => up(this, e));
 
-        refreshCursorPosition(this.target);
+        refreshCursorPosition(this.target, this);
         this.syncronizeLabels();
     }
 
@@ -898,7 +945,7 @@ class Vim {
             this.modeSpan.innerText = this.mode;
         }
         if (this.posSpan) {
-            const [rows, cols] = getCursorPosition(this.target);
+            const [rows, cols] = getCursorPosition(this.target, this);
             this.posSpan.innerText = `${rows},${cols}`;
         }
     }
