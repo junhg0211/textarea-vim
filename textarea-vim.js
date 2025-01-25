@@ -678,8 +678,8 @@ function changeIndent(where, repeats, vim) {
 
     const selectionPos = getSelectionPosition(where, vim);
     where.value = newContent;
-    where.selectionStart = selectionPos;
-    where.selectionEnd = selectionPos + 1;
+    where.selectionStart = selectionPos + 4 * repeats;
+    where.selectionEnd = selectionPos + 4 * repeats + 1;
 }
 
 function joinLines(where, repeats, vim) {
