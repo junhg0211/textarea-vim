@@ -130,15 +130,18 @@ function removeCharacter(where, repeats, vim) {
 
     let newValue = where.value;
     let previousValue;
+    let clipboard = "";
     for (let i = 0; i < repeats; i++) {
         previousValue = newValue;
 
         newValue = newValue.substring(0, selectionPos) + newValue.substring(selectionPos + 1);
+        clipboard += previousValue[selectionPos];
         if ((where.value.match(/\n/g) || []).length !== (newValue.match(/\n/g) || []).length) {
             newValue = previousValue;
             break;
         }
     }
+    copy(clipboard);
 
     where.value = newValue;
     where.selectionStart = selectionPos;
@@ -149,7 +152,7 @@ function removeCharacter(where, repeats, vim) {
 function removeLine(where, repeats, vim) {
     const lines = where.value.split(/\n/g);
     const [rows, cols] = getCursorPosition(where, vim);
-    lines.splice(rows - 1, repeats);
+    copy(lines.splice(rows - 1, repeats).join("\n") + "\n");
 
     where.value = lines.join("\n");
 
@@ -239,6 +242,9 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const selectionEnd = where.selectionEnd;
         const content =
             where.value.substring(0, selectionStart) + where.value.substring(selectionEnd);
+
+        copy(where.value.substring(selectionStart, selectionEnd));
+
         where.value = content;
         where.selectionStart = selectionStart;
         where.selectionEnd = selectionStart + 1;
@@ -308,6 +314,8 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const isWORD = mKey.toUpperCase() === mKey;
         const wordPosition = getWordPosition(where, mRepeats, vim, isWORD, isEnd) + (isEnd ? 1 : 0);
 
+        copy(where.value.substring(where.selectionStart, wordPosition));
+
         const left = where.value.substring(0, where.selectionStart);
         const content = left + where.value.substring(wordPosition);
         where.value = content;
@@ -343,6 +351,8 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
             return LEFT;
         }
 
+        copy(line.substring(cols, i + (isF ? 1 : 0)));
+
         const newLine = line.substring(0, cols) + line.substring(i + (isF ? 1 : 0));
         const previousLines = lines.splice(0, rows - 1);
         const nextLines = lines.splice(1);
@@ -356,22 +366,22 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (mKey === "iw") {
-        processBuffer(`wbc${mRepeats}e`, where, vim);
+        processBuffer(`wbd${mRepeats}e`, where, vim);
         return LEFT;
     }
 
     if (mKey === "iW") {
-        processBuffer(`WBc${mRepeats}E`, where, vim);
+        processBuffer(`WBd${mRepeats}E`, where, vim);
         return LEFT;
     }
 
     if (mKey === "aw") {
-        processBuffer(`wbc${mRepeats}w`, where, vim);
+        processBuffer(`wbd${mRepeats}w`, where, vim);
         return LEFT;
     }
 
     if (mKey === "aW") {
-        processBuffer(`WBc${mRepeats}W`, where, vim);
+        processBuffer(`WBd${mRepeats}W`, where, vim);
         return LEFT;
     }
 
@@ -424,6 +434,8 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
                     const [start, end] = [parenthesisStack.pop(), i];
 
+                    copy(where.value.substring(start + (isIn ? 1 : 0), end + (isIn ? 0 : 1)));
+
                     where.value =
                         where.value.substring(0, start + (isIn ? 1 : 0)) +
                         where.value.substring(end + (isIn ? 0 : 1));
@@ -461,9 +473,11 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
             return LEFT;
         }
 
-        const [_match, mid1, _content, mid2] = match;
+        const [_match, mid1, content, mid2] = match;
         const middle =
             left + mid1.substring(0, mid1.length - (isIn ? 0 : 1)) + mid2.substring(isIn ? 0 : 1);
+
+        copy(mid1.substring(mid1.length - (isIn ? 0 : 1), mid1.length) + content + mid2.substring(0, isIn ? 0 : 1));
 
         const previous = lines.splice(0, rows - 1);
         const next = lines.splice(1);
@@ -491,6 +505,8 @@ function replaceCharacter(where, repeats, vim, args) {
     if (cols + repeats > line.length) {
         return;
     }
+
+    copy(line[cols]);
 
     const newLine = line.substring(0, cols) + args.repeat(repeats) + line.substring(cols + repeats);
     lines[rows - 1] = newLine;
@@ -713,8 +729,65 @@ function joinLines(where, repeats, vim) {
     setCursorPosition(where, rows, cols, vim);
 }
 
+let clipboard;
+function copy(content) {
+    clipboard = content;
+    navigator.clipboard.writeText(content);
+}
+
+async function paste(where, repeats, vim, previous) {
+    previous = previous === undefined ? undefined : true;
+
+    const [rows, cols] = getCursorPosition(where, vim);
+    const lines = where.value.split(/\n/g);
+    const previousLines = lines.splice(0, rows - 1);
+    const nextLines = lines.splice(1);
+
+    let c;
+    try {
+        c = await navigator.clipboard.readText();
+    } catch (e) {
+        c = clipboard;
+    }
+
+    if (c.indexOf("\n") !== -1) {
+        let newClipboard = c;
+        while (newClipboard.endsWith("\n")) {
+            newClipboard = newClipboard.substring(0, newClipboard.length - 1);
+        }
+        while (newClipboard.startsWith("\n")) {
+            newClipboard = newClipboard.substring(1);
+        }
+
+        let newLines;
+        if (previous) {
+            newLines = [...previousLines, newClipboard, lines[0], ...nextLines];
+        } else {
+            newLines = [...previousLines, lines[0], newClipboard, ...nextLines];
+        }
+        const newContent = newLines.join("\n");
+        where.value = newContent;
+        setCursorPosition(where, rows + (previous ? 0 : 1), cols, vim);
+    } else {
+        const line = lines[0];
+        const left = line.substring(0, cols + (previous ? 0 : 1));
+        const right = line.substring(cols + (previous ? 0 : 1));
+        const newLine = left + c.repeat(repeats) + right;
+
+        const newLines = [...previousLines, newLine, ...nextLines];
+        const newContent = newLines.join("\n");
+        where.value = newContent;
+        setCursorPosition(
+            where,
+            rows,
+            cols + c.length * repeats - (previous ? 1 : 0),
+            vim
+        );
+    }
+}
+
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGI-JOSV-Wa-fhi-lor-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGI-JO-PSV-Wa-fhi-lo-pr-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -894,6 +967,14 @@ const normalCommands = [
     {
         key: "<C-r>",
         action: (w, r, v) => redoStack(w, r, v),
+    },
+    {
+        key: "p",
+        action: (w, r, v) => paste(w, r, v),
+    },
+    {
+        key: "P",
+        action: (w, r, v) => paste(w, r, v, true),
     },
     {
         key: "v",
