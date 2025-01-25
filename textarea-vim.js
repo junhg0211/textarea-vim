@@ -66,10 +66,6 @@ function setMode(vim, mode) {
         return;
     }
 
-    if (vim.mode === MODE_NORMAL) {
-        pushStack(vim.target);
-    }
-
     vim.mode = mode;
     lineifyCursor(vim.target);
     vim.syncronizeLabels();
@@ -90,7 +86,6 @@ function removeCharacter(where, repeats) {
         }
     }
 
-    pushStack(where);
     where.value = newValue;
     where.selectionStart = selectionPos;
     where.selectionEnd = selectionPos + 1;
@@ -102,7 +97,6 @@ function removeLine(where, repeats) {
     const [rows, cols] = getCursorPosition(where);
     lines.splice(rows - 1, repeats);
 
-    pushStack(where);
     where.value = lines.join("\n");
 
     setCursorPosition(where, rows, cols);
@@ -119,9 +113,13 @@ function pushStack(where) {
     const [rows, cols] = getCursorPosition(where);
     stack.push([where.value, rows, cols]);
     redoStack.length = 0;
+
+    console.log("pushStack", stack);
 }
 
 function popStack(where, repeats) {
+    console.log("popStack", stack);
+
     repeats = repeats === undefined ? 1 : repeats;
 
     for (let i = 0; i < repeats; i++) {
@@ -144,8 +142,6 @@ function redoStack(where, repeats) {
         if (backStack.length === 0) {
             break;
         }
-
-        pushStack(where);
 
         const [value, rows, cols] = backStack.pop();
         where.value = value;
@@ -254,7 +250,6 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
         const left = where.value.substring(0, where.selectionStart);
         const content = left + where.value.substring(wordPosition);
-        pushStack(where);
         where.value = content;
         where.selectionStart = left.length;
         where.selectionEnd = left.length + 1;
@@ -265,10 +260,10 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     if (mKey[0] === "f" || mKey[0] === "t") {
         const isF = mKey[0] === "f";
         const target = mKey[1];
-        
+
         const [rows, cols] = getCursorPosition(where);
         const lines = where.value.split(/\n/g);
-        const line = lines[rows-1];
+        const line = lines[rows - 1];
 
         let i;
         let found = false;
@@ -289,13 +284,12 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         }
 
         const newLine = line.substring(0, cols) + line.substring(i + (isF ? 1 : 0));
-        const previousLines = lines.splice(0, rows-1);
+        const previousLines = lines.splice(0, rows - 1);
         const nextLines = lines.splice(1);
         const newLines = [...previousLines, newLine, ...nextLines];
         const newContent = newLines.join("\n");
 
         const selectionPos = where.selectionStart;
-        pushStack(where);
         where.value = newContent;
         where.selectionStart = selectionPos;
         where.selectionEnd = selectionPos + 1;
@@ -322,12 +316,24 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     }
 
     if (
-        mKey === "i(" || mKey === "i)" || mKey === "a(" || mKey === "a)"
-        || mKey === "i{" || mKey === "i}" || mKey === "a{" || mKey === "a}"
-        || mKey === "i[" || mKey === "i]" || mKey === "a[" || mKey === "a]"
-        || mKey === "i<" || mKey === "i>" || mKey === "a<" || mKey === "a>"
+        mKey === "i(" ||
+        mKey === "i)" ||
+        mKey === "a(" ||
+        mKey === "a)" ||
+        mKey === "i{" ||
+        mKey === "i}" ||
+        mKey === "a{" ||
+        mKey === "a}" ||
+        mKey === "i[" ||
+        mKey === "i]" ||
+        mKey === "a[" ||
+        mKey === "a]" ||
+        mKey === "i<" ||
+        mKey === "i>" ||
+        mKey === "a<" ||
+        mKey === "a>"
     ) {
-        const isIn = mKey[0] === 'i';
+        const isIn = mKey[0] === "i";
 
         let openingParenthesis, closingParenthesis;
         if (mKey[1] === "(" || mKey[1] === ")") {
@@ -358,7 +364,6 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
 
                     const [start, end] = [parenthesisStack.pop(), i];
 
-                    pushStack(where);
                     where.value =
                         where.value.substring(0, start + (isIn ? 1 : 0)) +
                         where.value.substring(end + (isIn ? 0 : 1));
@@ -375,7 +380,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         // -- if line afterwards contains parenthesis
         const lines = where.value.split(/\n/g);
         const [rows, cols] = getCursorPosition(where);
-        const line = lines[rows-1];
+        const line = lines[rows - 1];
 
         const left = line.substring(0, cols);
         const right = line.substring(cols);
@@ -391,7 +396,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         } else if (openingParenthesis === "<") {
             match = right.match(/^([^\>]*\<)([^\>]*)(\>.*)$/);
         }
-        
+
         if (match === null) {
             return LEFT;
         }
@@ -399,16 +404,15 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
         const [_match, mid1, _content, mid2] = match;
         const middle =
             left + mid1.substring(0, mid1.length - (isIn ? 0 : 1)) + mid2.substring(isIn ? 0 : 1);
-        
-        const previous = lines.splice(0, rows-1);
+
+        const previous = lines.splice(0, rows - 1);
         const next = lines.splice(1);
-        const newLines = [...previous, middle, ...next]
+        const newLines = [...previous, middle, ...next];
 
         let selectionStart = left.length + mid1.length;
         previous.forEach((line) => (selectionStart += line.length + 1));
 
         const newContent = newLines.join("\n");
-        pushStack(where);
         where.value = newContent;
         where.selectionStart = selectionStart;
         where.selectionEnd = selectionStart + 1;
@@ -437,7 +441,6 @@ function replaceCharacter(where, repeats, args) {
     }
     previousLength += cols + repeats - 1;
 
-    pushStack(where);
     where.value = lines.join("\n");
     where.selectionStart = previousLength;
     where.selectionEnd = previousLength + 1;
@@ -511,7 +514,6 @@ function changeCaps(where, repeats) {
     const newLine = left + changes + right;
 
     const newContent = [...previousLines, newLine, ...nextLines].join("\n");
-    pushStack(where);
     where.value = newContent;
     setCursorPosition(where, rows, cols + repeats);
 }
@@ -529,7 +531,7 @@ function moveFind(where, repeats, args, isT) {
 
     const [rows, cols] = getCursorPosition(where);
     const lines = where.value.split(/\n/g);
-    const line = lines[rows-1];
+    const line = lines[rows - 1];
     const right = line.substring(cols);
 
     let count = 0;
@@ -556,7 +558,7 @@ function moveFind(where, repeats, args, isT) {
 function changeIndent(where, repeats) {
     const lines = where.value.split(/\n/g);
     const [rows, cols] = getCursorPosition(where);
-    const previousLines = lines.splice(0, rows-1);
+    const previousLines = lines.splice(0, rows - 1);
     const nextLines = lines.splice(repeats * (repeats < 0 ? -1 : 1));
 
     const newlines = [];
@@ -581,7 +583,6 @@ function changeIndent(where, repeats) {
     const newContent = newLines.join("\n");
 
     const selectionPos = where.selectionStart;
-    pushStack(where);
     where.value = newContent;
     where.selectionStart = selectionPos;
     where.selectionEnd = selectionPos + 1;
@@ -594,72 +595,89 @@ const normalCommands = [
     {
         key: "gg",
         action: (w, r) => setCursorPosition(w, r, 0),
+        ignoreStack: true,
     },
     {
         key: "k",
         action: (w, r) => moveCursor(w, -r, 0),
+        ignoreStack: true,
     },
     {
         key: "0",
         action: (w) => moveCursor(w, 0, -Infinity),
+        ignoreStack: true,
     },
     {
         key: "^",
         action: (w) => homeCursor(w),
+        ignoreStack: true,
     },
     {
         key: "b",
         action: (w, r) => moveWord(w, -r + 1),
+        ignoreStack: true,
     },
     {
         key: "B",
         action: (w, r) => moveWord(w, -r + 1, true),
+        ignoreStack: true,
     },
     {
         key: "h",
         action: (w, r) => moveCursor(w, 0, -r),
+        ignoreStack: true,
     },
     {
         key: "l",
         action: (w, r) => moveCursor(w, 0, r),
+        ignoreStack: true,
     },
     {
         key: "w",
         action: (w, r) => moveWord(w, r),
+        ignoreStack: true,
     },
     {
         key: "e",
         action: (w, r) => moveWord(w, r, false, true),
+        ignoreStack: true,
     },
     {
         key: "W",
         action: (w, r) => moveWord(w, r, true),
+        ignoreStack: true,
     },
     {
         key: "E",
         action: (w, r) => moveWord(w, r, true, true),
+        ignoreStack: true,
     },
     {
         key: "t",
         action: (w, r, v, a) => moveFind(w, r, a, true),
         requireArg: true,
+        ignoreStack: true,
     },
     {
         key: "f",
         action: (w, r, v, a) => moveFind(w, r, a),
         requireArg: true,
+        ignoreStack: true,
     },
     {
         key: "$",
         action: (w) => moveCursor(w, 0, Infinity),
+        ignoreStack: true,
     },
     {
         key: "j",
         action: (w, r) => moveCursor(w, r, 0),
+        ignoreStack: true,
     },
     {
         key: "G",
         action: (w, r) => setCursorPosition(w, r === 1 ? Infinity : r, 0),
+        ignoreStack: true,
     },
     {
         key: "r",
@@ -733,7 +751,7 @@ const normalCommands = [
     },
     {
         key: "D",
-        action: (w, r, v) => processBuffer("d$", w, v),
+        alias: "d$",
     },
     {
         key: "dd",
@@ -742,6 +760,7 @@ const normalCommands = [
     {
         key: "u",
         action: (w, r) => popStack(w, r),
+        ignoreStack: true,
     },
     {
         key: "<C-r>",
@@ -749,7 +768,9 @@ const normalCommands = [
     },
 ];
 
-function processBuffer(buffer, where, vim) {
+function processBuffer(buffer, where, vim, ignoreStack) {
+    ignoreStack = ignoreStack !== undefined;
+
     const originalBuffer = buffer;
     const [command, repeat, _a, key, zero, arg, mr, mk] = buffer.match(COMMAND_RE) || [];
     const repeats = parseInt(repeat) || 1;
@@ -800,6 +821,9 @@ function processBuffer(buffer, where, vim) {
         } else {
             buffer = buffer.substring(command.length - extraLength);
             run = true;
+            if (!ignoreStack && !normalCommand.ignoreStack) {
+                pushStack(where);
+            }
             return normalCommand.action(where, repeats, vim);
         }
     });
