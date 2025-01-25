@@ -8,7 +8,6 @@ function getSelectionPosition(where, vim) {
     }
 
     if (vim.mode === MODE_VISUAL) {
-        console.log(visualStart, where.selectionStart, where.selectionEnd);
         return visualStart === where.selectionStart ? where.selectionEnd - 1 : where.selectionStart;
     }
 }
@@ -194,7 +193,7 @@ function newLineAfter(where, vim, dr) {
 }
 
 function insertAtCursor(where, value, vim) {
-    const selectionPos = getSelectionPosition(where, vim)
+    const selectionPos = getSelectionPosition(where, vim);
 
     where.value =
         where.value.substring(0, selectionPos) + value + where.value.substring(selectionPos);
@@ -205,6 +204,18 @@ function insertAtCursor(where, value, vim) {
 const LEFT = "LEFT";
 const RIGHT = "RIGHT";
 function processDelete(where, repeats, vim, mRepeats, mKey) {
+    if (vim.mode === MODE_VISUAL) {
+        const selectionStart = where.selectionStart;
+        const selectionEnd = where.selectionEnd;
+        const content =
+            where.value.substring(0, selectionStart) + where.value.substring(selectionEnd);
+        where.value = content;
+        where.selectionStart = selectionStart;
+        where.selectionEnd = selectionStart + 1;
+        setMode(vim, MODE_NORMAL);
+        return LEFT;
+    }
+
     if (mKey === "gg") {
         const [rows] = getCursorPosition(where, vim);
         processBuffer(`gg${rows}dd`, where, vim);
@@ -443,7 +454,7 @@ function processDelete(where, repeats, vim, mRepeats, mKey) {
     // console.log(repeats, "d", mRepeats, mKey);
 }
 
-function replaceCharacter(where, repeats, args) {
+function replaceCharacter(where, repeats, vim, args) {
     const [rows, cols] = getCursorPosition(where, vim);
     let lines = where.value.split(/\n/g);
 
@@ -627,7 +638,7 @@ function changeIndent(where, repeats, vim) {
 }
 
 const COMMAND_RE =
-    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSWa-fhi-lort-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
+    /^([1-9]\d*)?((dd|>>|<<|[~\$\^A-EGIOSWa-fhi-lor-x]|gg|<C-r>)|(^0))(([1-9]\d*)?(gg|[ia][(){}[\]<>Ww]|[tf].|[\$\^0D-EGWehj-lw])|.)?/;
 
 const normalCommands = [
     {
@@ -719,7 +730,7 @@ const normalCommands = [
     },
     {
         key: "r",
-        action: (w, r, v, a) => replaceCharacter(w, r, a),
+        action: (w, r, v, a) => replaceCharacter(w, r, v, a),
         requireArg: true,
     },
     {
@@ -771,6 +782,10 @@ const normalCommands = [
         action: (w, r, v) => newLineAfter(w, v, -1),
     },
     {
+        key: "s",
+        alias: "xi",
+    },
+    {
         key: "S",
         alias: "ddO",
     },
@@ -803,7 +818,7 @@ const normalCommands = [
     {
         key: "v",
         action: (w, r, v) => setMode(v, MODE_VISUAL),
-    }
+    },
 ];
 
 function processBuffer(buffer, where, vim, recordStack) {
@@ -851,7 +866,11 @@ function processBuffer(buffer, where, vim, recordStack) {
         const extraLength = args.length;
 
         if (normalCommand.requireArgs || normalCommand.requireArg) {
-            if (mKey.length > 0 || (normalCommand.requireArg && args.length > 0)) {
+            if (
+                vim.mode === MODE_VISUAL ||
+                mKey.length > 0 ||
+                (normalCommand.requireArg && args.length > 0)
+            ) {
                 buffer = buffer.substring(command.length);
                 run = true;
                 return normalCommand.action(where, repeats, vim, args, mRepeats, mKey);
@@ -911,7 +930,6 @@ function down(v, e) {
             insertAtCursor(v.target, "    ", v);
         }
     }
-
 
     v.syncronizeLabels();
 }
